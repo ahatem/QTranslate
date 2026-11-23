@@ -207,14 +207,6 @@ class MainGlobalKeyListener(
         }
     }
 
-    fun updateBindings(newBindings: List<HotkeyBinding>) {
-        reconcileLock.withLock {
-            runtimeState = runtimeState.copy(bindings = newBindings)
-            if (!initialized.get()) return
-            reconcile()
-        }
-    }
-
     /**
      * Applies one explicit runtime input state through the single reconciliation path, so
      * independent setters cannot leave the native side inconsistent. The Double Ctrl opt-in is

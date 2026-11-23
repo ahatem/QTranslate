@@ -153,9 +153,6 @@ class ScreenCapturePanel(
         }
     }
 
-    /** The button for [action], for tooltip/shortcut tests and future accessibility wiring. */
-    internal fun buttonFor(action: CaptureToolbarAction): JButton? = actionButtons[action]
-
     // ─────────────────────────────────────────────────────────────────────────
     // Painting
     // ─────────────────────────────────────────────────────────────────────────

@@ -103,9 +103,6 @@ internal object SettingsVisuals {
     /** An explanation. Smaller and italic, and never so small that it stops being readable. */
     fun hintFont(base: Font): Font = base.deriveFont(Font.ITALIC, base.size - 1f)
 
-    /** Reading text, such as a page's opening explanation. Italic would make prose look edited. */
-    fun paragraphFont(base: Font): Font = base.deriveFont(Font.PLAIN, base.size.toFloat())
-
     /** WCAG relative luminance of [color]. */
     fun relativeLuminance(color: Color): Double {
         fun channel(value: Int): Double {

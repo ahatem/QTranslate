@@ -5,7 +5,6 @@ import com.formdev.flatlaf.util.UIScale
 import com.github.ahatem.qtranslate.ui.swing.shared.util.clearBorder
 import java.awt.Color
 import java.awt.Component
-import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Rectangle
@@ -236,11 +235,5 @@ internal class SettingsRowList<E : Any>(
         /** The colour a row's secondary line uses, from the theme rather than from a literal. */
         fun secondaryForeground(): Color =
             UIManager.getColor("Label.disabledForeground") ?: UIManager.getColor("Label.foreground")
-
-        /** Row height for a two-line row, in device pixels. */
-        fun twoLineRowHeight(): Int = UIScale.scale(58)
-
-        /** Identity of a row, for a renderer that needs a fixed preferred size. */
-        fun rowSize(width: Int, height: Int): Dimension = Dimension(width, UIScale.scale(height))
     }
 }

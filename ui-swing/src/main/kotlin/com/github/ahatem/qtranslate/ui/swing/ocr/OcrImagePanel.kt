@@ -157,8 +157,6 @@ internal class OcrImagePanel : JPanel(), Scrollable {
         setScale(scale * ZOOM_STEP)
     }
 
-    fun isFitMode(): Boolean = fitMode
-
     fun refitIfFitted(viewport: Dimension) {
         if (fitMode) fitToWindow(viewport)
     }

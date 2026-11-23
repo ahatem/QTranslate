@@ -509,23 +509,6 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
     )
 
     /**
-     * Adds running text: a page's opening explanation, set as prose.
-     *
-     * Not [addHint], because that is secondary to something above it and is rendered as an aside.
-     * A lead paragraph is the primary thing on the page — the reason the page exists — so it takes
-     * the body color and upright type, and only the measure is constrained.
-     */
-    protected fun addParagraph(text: String) = addTextRow(
-        text = text,
-        textFont = SettingsVisuals.paragraphFont(font),
-        color = SettingsVisuals.primaryText(),
-        measure = PARAGRAPH_WIDTH,
-        gapTop = PARAGRAPH_GAP_TOP,
-        gapBottom = PARAGRAPH_GAP_BOTTOM,
-        explainedSetting = false,
-    )
-
-    /**
      * One wrapped block of text, drawn by a `JLabel`.
      *
      * The breaks are computed here and given to the label as explicit `<br>`s, for two reasons.
@@ -826,23 +809,11 @@ abstract class SettingsPanel : JPanel(), Renderable<SettingsState> {
         /** Space below an explanation, before the next setting. */
         const val HINT_GAP_BOTTOM = 4
 
-        /** Space above and below a lead paragraph. */
-        const val PARAGRAPH_GAP_TOP = 2
-        const val PARAGRAPH_GAP_BOTTOM = 8
-
-        /** Space above and below a page's prominent action. */
-        const val BUTTON_GAP_TOP = 10
-        const val BUTTON_GAP_BOTTOM = 4
-
-
         /** Padding around the page itself. */
         const val EDGE = 10
 
         /** Measure a hint wraps at, before scaling. Roughly a comfortable line of prose. */
         const val HINT_WIDTH = 460
-
-        /** Measure running text wraps at: wider than a hint, since it is the page's own voice. */
-        const val PARAGRAPH_WIDTH = 560
 
         /** Separates a section from a sub-section in a search result's path. */
         const val SECTION_SEPARATOR = "›"

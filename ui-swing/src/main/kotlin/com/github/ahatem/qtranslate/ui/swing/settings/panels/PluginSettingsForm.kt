@@ -173,21 +173,6 @@ internal class PluginSettingsForm(
         footerActions.repaint()
     }
 
-    /**
-     * Puts the caret in the first field of the first visible section.
-     *
-     * Used when the Plugins page reveals the settings of a plugin the user just picked: landing
-     * at the top of a form and pressing Tab is one keystroke too many for something the user has
-     * already asked for by name.
-     */
-    internal fun focusFirstInput(): Boolean {
-        val target = components.values
-            .firstOrNull { it.fieldBlock.isVisible }
-            ?.component
-            ?.let(::firstFocusable)
-        return target?.requestFocusInWindow() ?: false
-    }
-
     // =========================================================================
     // Form panel (width-tracked so wrapped text has a width to wrap to)
     // =========================================================================
