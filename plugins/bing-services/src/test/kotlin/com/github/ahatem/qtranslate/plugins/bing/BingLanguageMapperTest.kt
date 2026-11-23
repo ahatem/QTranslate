@@ -1,7 +1,6 @@
 package com.github.ahatem.qtranslate.plugins.bing
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,39 +9,49 @@ import kotlin.test.assertTrue
 class BingLanguageMapperTest {
 
     @Test
-    fun `translation list advertises regional Portuguese without a duplicate generic row`() {
-        val list = BingLanguageMapper.translationLanguageCodes
-        assertTrue(LanguageCode.PORTUGUESE_BRAZIL in list)
-        assertTrue(LanguageCode.PORTUGUESE_PORTUGAL in list)
-        assertFalse(LanguageCode.PORTUGUESE in list)
-        val portugueseRows = list.filter { it.tag.startsWith("pt") }
-        assertEquals(setOf(LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL), portugueseRows.toSet())
+    fun `translation and tts lists advertise regional Portuguese without a generic row`() {
+        for ((name, list) in listOf(
+            "translation" to BingLanguageMapper.translationLanguageCodes,
+            "tts" to BingLanguageMapper.ttsLanguageCodes
+        )) {
+            assertTrue(LanguageCode.PORTUGUESE_BRAZIL in list, "$name: Brazilian")
+            assertTrue(LanguageCode.PORTUGUESE_PORTUGAL in list, "$name: European")
+            assertFalse(LanguageCode.PORTUGUESE in list, "$name: no generic duplicate")
+            assertEquals(
+                setOf(LanguageCode.PORTUGUESE_BRAZIL, LanguageCode.PORTUGUESE_PORTUGAL),
+                list.filter { it.tag.startsWith("pt") }.toSet(),
+                "$name: Portuguese rows"
+            )
+        }
     }
 
     @Test
-    fun `brazilian portuguese maps through to the bing codes`() = runBlocking {
-        assertEquals("pt", BingLanguageMapper.toProviderCode(LanguageCode.PORTUGUESE_BRAZIL))
-        assertEquals("pt-PT", BingLanguageMapper.toProviderCode(LanguageCode.PORTUGUESE_PORTUGAL))
+    fun `codes map to the provider and back`() {
+        // Outbound pairs; the reverse direction is read back as the same language unless noted.
+        val roundTrips = listOf(
+            LanguageCode.PORTUGUESE_BRAZIL to "pt",
+            LanguageCode.PORTUGUESE_PORTUGAL to "pt-PT",
+            LanguageCode.SERBIAN to "sr-Cyrl",
+            LanguageCode.NORWEGIAN to "nb",
+            LanguageCode.AUTO to "auto-detect",
+        )
+        for ((language, code) in roundTrips) {
+            assertEquals(code, BingLanguageMapper.toProviderCode(language), "to provider: $language")
+        }
         assertEquals("pt", BingLanguageMapper.toProviderCode(LanguageCode.PORTUGUESE))
-    }
 
-    @Test
-    fun `serbian is sent with its script`() {
-        assertEquals("sr-Cyrl", BingLanguageMapper.toProviderCode(LanguageCode.SERBIAN))
-    }
-
-    @Test
-    fun `either serbian script is read back as the single serbian choice`() {
-        assertEquals(LanguageCode.SERBIAN, BingLanguageMapper.fromProviderCode("sr-Cyrl"))
-        assertEquals(LanguageCode.SERBIAN, BingLanguageMapper.fromProviderCode("sr-Latn"))
-    }
-
-    @Test
-    fun `languages this endpoint does not take are still mapped`() {
-        assertEquals("nb", BingLanguageMapper.toProviderCode(LanguageCode.NORWEGIAN))
-        assertEquals("auto-detect", BingLanguageMapper.toProviderCode(LanguageCode.AUTO))
-        assertEquals(LanguageCode.NORWEGIAN, BingLanguageMapper.fromProviderCode("nb"))
-        assertEquals(LanguageCode.AUTO, BingLanguageMapper.fromProviderCode("auto-detect"))
+        val reads = listOf(
+            "pt-br" to LanguageCode.PORTUGUESE_BRAZIL,
+            "pt-pt" to LanguageCode.PORTUGUESE_PORTUGAL,
+            "pt" to LanguageCode.PORTUGUESE,
+            "sr-Cyrl" to LanguageCode.SERBIAN,
+            "sr-Latn" to LanguageCode.SERBIAN,
+            "nb" to LanguageCode.NORWEGIAN,
+            "auto-detect" to LanguageCode.AUTO,
+        )
+        for ((code, language) in reads) {
+            assertEquals(language, BingLanguageMapper.fromProviderCode(code), "from provider: $code")
+        }
     }
 
     @Test
@@ -50,20 +59,5 @@ class BingLanguageMapperTest {
         val list = BingLanguageMapper.translationLanguageCodes
         assertTrue(LanguageCode.SERBIAN in list)
         assertFalse(LanguageCode("haw") in list)
-    }
-
-    @Test
-    fun `reverse mapping yields canonical language codes`() {
-        assertEquals(LanguageCode.PORTUGUESE_BRAZIL, BingLanguageMapper.fromProviderCode("pt-br"))
-        assertEquals(LanguageCode.PORTUGUESE_PORTUGAL, BingLanguageMapper.fromProviderCode("pt-pt"))
-        assertEquals(LanguageCode.PORTUGUESE, BingLanguageMapper.fromProviderCode("pt"))
-    }
-
-    @Test
-    fun `tts list advertises both brazilian and european voices`() {
-        val list = BingLanguageMapper.ttsLanguageCodes.toSet()
-        assertTrue(LanguageCode.PORTUGUESE_BRAZIL in list)
-        assertTrue(LanguageCode.PORTUGUESE_PORTUGAL in list)
-        assertFalse(LanguageCode.PORTUGUESE in list)
     }
 }

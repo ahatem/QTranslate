@@ -78,103 +78,64 @@ class BingTranslatorServiceTest {
 
     @Test
     fun `an error object with an auth status is an authentication failure`() {
-        listOf("401", "403").forEach { status ->
-            val error = errorFrom("""{"statusCode":"$status","errorMessage":""}""")
+        // String and numeric status codes both count.
+        for (body in listOf(
+            """{"statusCode":"401","errorMessage":""}""",
+            """{"statusCode":"403","errorMessage":""}""",
+            """{"statusCode":401,"errorMessage":""}"""
+        )) {
+            val error = errorFrom(body)
 
-            assertIs<ServiceError.AuthenticationError>(error, "status: $status")
-            assertContains(error.message, status)
+            assertIs<ServiceError.AuthenticationError>(error, "body: $body")
+            assertContains(error.message, Regex("\\d{3}").find(body)!!.value)
             assertContains(error.message, REJECTED)
+            assertUserFacing(error.message)
         }
     }
 
     @Test
-    fun `a numeric auth status is still an authentication failure`() {
-        val error = errorFrom("""{"statusCode":401,"errorMessage":""}""")
-
-        assertIs<ServiceError.AuthenticationError>(error)
-        assertContains(error.message, "401")
-    }
-
-    @Test
-    fun `an error object carrying a provider message reports both`() {
-        val error = errorFrom(
-            """{"statusCode":"400","errorMessage":"Invalid request. Invalid from language."}"""
+    fun `an error object that is not an auth failure reports the status and any provider message`() {
+        // body to substring the message must carry besides the status.
+        val cases = listOf(
+            """{"statusCode":"400","errorMessage":"Invalid request. Invalid from language."}""" to "Invalid request. Invalid from language.",
+            """{"statusCode":"400","errorMessage":""}""" to "400",
+            """{"statusCode":"400"}""" to "400",
+            """{"statusCode":400,"errorMessage":""}""" to "400",
+            """{"errorMessage":"Something went wrong"}""" to "Something went wrong",
         )
+        for ((body, expected) in cases) {
+            val error = errorFrom(body)
 
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertContains(error.message, "400")
-        assertContains(error.message, "Invalid request. Invalid from language.")
-        assertContains(error.message, REJECTED)
+            assertIs<ServiceError.InvalidResponseError>(error, "body: $body")
+            assertContains(error.message, expected)
+            assertContains(error.message, REJECTED)
+            assertFalse(error.message.contains("errorMessage"), "message named a JSON field: ${error.message}")
+            assertUserFacing(error.message)
+        }
     }
 
     @Test
-    fun `an error object with a blank message still names the status`() {
-        val error = errorFrom("""{"statusCode":"400","errorMessage":""}""")
+    fun `a body that is not json is reported without markup or parser text`() {
+        val page = errorFrom(HTML_RESPONSE)
+        assertIs<ServiceError.ServiceUnavailableError>(page)
+        assertTrue(page.isRetryable, "a page instead of json is temporary")
+        assertFalse(page.message.contains("<html", ignoreCase = true), "message carried markup: ${page.message}")
+        assertUserFacing(page.message)
 
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertContains(error.message, "400")
-        assertContains(error.message, REJECTED)
-        assertFalse(error.message.contains("errorMessage"), "message named a JSON field: ${error.message}")
+        val empty = errorFrom("")
+        assertIs<ServiceError.ServiceUnavailableError>(empty)
+        assertUserFacing(empty.message)
+
+        val malformed = errorFrom("""[{"translations": [ }""")
+        assertIs<ServiceError.InvalidResponseError>(malformed)
+        assertFalse(malformed.isRetryable)
+        assertUserFacing(malformed.message)
     }
 
     @Test
-    fun `an error object with no message at all still names the status`() {
-        val error = errorFrom("""{"statusCode":"400"}""")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertContains(error.message, "400")
-        assertContains(error.message, REJECTED)
-    }
-
-    @Test
-    fun `a numeric status code is read rather than failing to decode`() {
-        val error = errorFrom("""{"statusCode":400,"errorMessage":""}""")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertContains(error.message, "400")
-        assertContains(error.message, REJECTED)
-    }
-
-    @Test
-    fun `an error object with no status code is still reported cleanly`() {
-        val error = errorFrom("""{"errorMessage":"Something went wrong"}""")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertContains(error.message, "Something went wrong")
-        assertContains(error.message, REJECTED)
-    }
-
-    @Test
-    fun `a page instead of json is temporary rather than a permanent failure`() {
-        val error = errorFrom(HTML_RESPONSE)
-
-        assertIs<ServiceError.ServiceUnavailableError>(error)
-        assertTrue(error.isRetryable)
-        assertFalse(error.message.contains("<html", ignoreCase = true), "message carried markup: ${error.message}")
-        assertNoParserInternals(error.message)
-    }
-
-    @Test
-    fun `an empty body is reported as unexpected rather than crashing`() {
-        val error = errorFrom("")
-
-        assertIs<ServiceError.ServiceUnavailableError>(error)
-        assertNoParserInternals(error.message)
-    }
-
-    @Test
-    fun `malformed json is reported without its parser text`() {
-        val error = errorFrom("""[{"translations": [ }""")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertFalse(error.isRetryable)
-        assertNoParserInternals(error.message)
-        assertTrue(error.message.isNotBlank())
-    }
-
-    @Test
-    fun `an object with no bing error field is an unexpected shape, not a rejection`() {
-        listOf("{}", """{"foo":"bar"}""", """{"translations":[]}""").forEach { body ->
+    fun `json with no bing error field is an unexpected shape, not a rejection`() {
+        val bodies = listOf("{}", """{"foo":"bar"}""", """{"translations":[]}""", """"hello"""", "123", "true", "null")
+        for (body in bodies) {
             val error = errorFrom(body)
 
             assertIs<ServiceError.InvalidResponseError>(error, "body: $body")
@@ -189,57 +150,18 @@ class BingTranslatorServiceTest {
     }
 
     @Test
-    fun `a primitive root is an unexpected shape`() {
-        listOf(""""hello"""", "123", "true", "null").forEach { body ->
+    fun `an empty array or an entry without a translation keeps the invalid-response wording`() {
+        for (body in listOf("[]", """[{"detectedLanguage":{"language":"en"}}]""")) {
             val error = errorFrom(body)
 
             assertIs<ServiceError.InvalidResponseError>(error, "body: $body")
-            assertEquals(
-                "Bing Translate returned an unexpected response. Please try again.",
-                error.message,
-                "body: $body"
-            )
-            assertFalse(error.message.contains(REJECTED), "body read as a rejection: $body")
-            assertNoParserInternals(error.message)
+            assertEquals("Empty or invalid response from Bing", error.message, "body: $body")
         }
     }
 
-    @Test
-    fun `an empty array keeps the existing invalid-response wording`() {
-        val error = errorFrom("[]")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertEquals("Empty or invalid response from Bing", error.message)
-    }
-
-    @Test
-    fun `an array entry without a translation keeps the existing wording`() {
-        val error = errorFrom("""[{"detectedLanguage":{"language":"en"}}]""")
-
-        assertIs<ServiceError.InvalidResponseError>(error)
-        assertEquals("Empty or invalid response from Bing", error.message)
-    }
-
-    @Test
-    fun `no provider failure reaches the user as parser internals`() {
-        val bodies = listOf(
-            """{"statusCode":"400","errorMessage":""}""",
-            """{"statusCode":400}""",
-            """{"errorMessage":"Something went wrong"}""",
-            HTML_RESPONSE,
-            "",
-            "[{\"translations\": [",
-            "{}",
-            """{"foo":"bar"}""",
-            """"hello"""",
-            "123"
-        )
-
-        bodies.forEach { body ->
-            val message = errorFrom(body).message
-            assertNoParserInternals(message)
-            assertTrue(message.startsWith("Bing Translate"), "message was not user-facing: $message")
-        }
+    private fun assertUserFacing(message: String) {
+        assertNoParserInternals(message)
+        assertTrue(message.startsWith("Bing Translate"), "message was not user-facing: $message")
     }
 
     /**

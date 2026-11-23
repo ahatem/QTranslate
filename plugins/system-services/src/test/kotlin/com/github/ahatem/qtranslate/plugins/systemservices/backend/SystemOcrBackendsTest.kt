@@ -21,23 +21,16 @@ class SystemOcrBackendsTest {
     }
 
     @Test
-    fun `windows selects the Windows Media OCR backend`() {
-        assertTrue(create("Windows 11").unwrap() is WindowsOcrBackend)
-    }
-
-    @Test
-    fun `mac os selects the Vision backend`() {
-        assertTrue(create("Mac OS X").unwrap() is MacVisionOcrBackend)
-    }
-
-    @Test
-    fun `darwin also selects the Vision backend`() {
-        assertTrue(create("Darwin").unwrap() is MacVisionOcrBackend)
-    }
-
-    @Test
-    fun `linux selects the Tesseract backend`() {
-        assertTrue(create("Linux").unwrap() is LinuxTesseractBackend)
+    fun `each platform selects its OCR backend`() {
+        val expected = listOf(
+            "Windows 11" to WindowsOcrBackend::class,
+            "Mac OS X" to MacVisionOcrBackend::class,
+            "Darwin" to MacVisionOcrBackend::class,
+            "Linux" to LinuxTesseractBackend::class,
+        )
+        for ((osName, backend) in expected) {
+            assertEquals(backend, create(osName).unwrap()::class, osName)
+        }
     }
 
     @Test

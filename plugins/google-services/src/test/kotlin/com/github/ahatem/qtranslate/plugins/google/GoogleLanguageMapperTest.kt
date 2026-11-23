@@ -2,8 +2,8 @@ package com.github.ahatem.qtranslate.plugins.google
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
 import com.github.ahatem.qtranslate.plugins.google.common.GoogleLanguageMapper
-import kotlinx.coroutines.runBlocking
 import com.github.michaelbull.result.getOr
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -20,39 +20,20 @@ class GoogleLanguageMapperTest {
     }
 
     @Test
-    fun `outbound codes preserve the region`() {
-        assertEquals("pt-BR", GoogleLanguageMapper.toProviderCode(LanguageCode.PORTUGUESE_BRAZIL))
-        assertEquals("pt-PT", GoogleLanguageMapper.toProviderCode(LanguageCode.PORTUGUESE_PORTUGAL))
-    }
-
-    @Test
-    fun `reverse mapping yields canonical language codes`() {
-        assertEquals(LanguageCode.PORTUGUESE_BRAZIL, GoogleLanguageMapper.fromProviderCode("pt-BR"))
-        assertEquals(LanguageCode.PORTUGUESE_PORTUGAL, GoogleLanguageMapper.fromProviderCode("pt-PT"))
+    fun `codes map to the provider and back`() = runBlocking {
+        val supported = GoogleLanguageMapper.getSupportedLanguages().getOr(emptySet())
+        // (language, provider code) pairs that round-trip.
+        val pairs = listOf(
+            LanguageCode.PORTUGUESE_BRAZIL to "pt-BR",
+            LanguageCode.PORTUGUESE_PORTUGAL to "pt-PT",
+            LanguageCode.GUARANI to "gn",
+            LanguageCode.GEORGIAN to "ka",
+        )
+        for ((language, code) in pairs) {
+            assertEquals(code, GoogleLanguageMapper.toProviderCode(language), "to provider: $language")
+            assertEquals(language, GoogleLanguageMapper.fromProviderCode(code), "from provider: $code")
+        }
+        assertTrue(LanguageCode.GUARANI in supported && LanguageCode.GEORGIAN in supported)
         assertEquals(LanguageCode.PORTUGUESE, GoogleLanguageMapper.fromProviderCode("pt"))
-    }
-
-    @Test
-    fun `supported set advertises Guarani`() = runBlocking {
-        val supported = GoogleLanguageMapper.getSupportedLanguages().getOr(emptySet())
-        assertTrue(LanguageCode.GUARANI in supported)
-    }
-
-    @Test
-    fun `Guarani maps to and from its standard provider code`() {
-        assertEquals("gn", GoogleLanguageMapper.toProviderCode(LanguageCode.GUARANI))
-        assertEquals(LanguageCode.GUARANI, GoogleLanguageMapper.fromProviderCode("gn"))
-    }
-
-    @Test
-    fun `supported set advertises Georgian`() = runBlocking {
-        val supported = GoogleLanguageMapper.getSupportedLanguages().getOr(emptySet())
-        assertTrue(LanguageCode.GEORGIAN in supported)
-    }
-
-    @Test
-    fun `Georgian maps to and from its standard provider code`() {
-        assertEquals("ka", GoogleLanguageMapper.toProviderCode(LanguageCode.GEORGIAN))
-        assertEquals(LanguageCode.GEORGIAN, GoogleLanguageMapper.fromProviderCode("ka"))
     }
 }
