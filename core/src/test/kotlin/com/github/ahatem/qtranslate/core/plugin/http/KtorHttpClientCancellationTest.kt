@@ -3,6 +3,7 @@ package com.github.ahatem.qtranslate.core.plugin.http
 import com.github.ahatem.qtranslate.api.core.Logger
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.core.shared.logging.CapturingLogger
+import com.github.ahatem.qtranslate.core.testing.SilentLogger
 import com.github.michaelbull.result.Result
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -15,37 +16,19 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * A cancelled request must surface [CancellationException] to its caller, never a
- * [ServiceError].
- *
- * Every request method catches [Exception] to map transport failures onto a typed
- * [ServiceError], and [CancellationException] is an [Exception]: without an explicit
- * re-throw, a cancellation landing inside a request or response path can complete as
- * "network error" or "no body" instead of being cancelled. Callers that own cancellation —
- * translation timeouts, superseded requests, app shutdown — would then report a provider
- * failure for a request they cancelled themselves, and anything that reads the result before
- * the cancellation is observed (a fallback attempt, a circuit breaker, a completed deferred)
- * acts on a failure the provider never produced. The response path is where the swallow is
- * directly observable: the body reads suspend, and a blanket [runCatching] around them turns
- * a cancelled read into an ordinary failure result.
+ * A cancelled request must surface [CancellationException] to its caller, never a [ServiceError].
+ * Every request method catches [Exception] to map transport failures, and [CancellationException]
+ * is one, so a swallowed cancellation would be reported as a provider failure.
  */
 class KtorHttpClientCancellationTest {
 
-    private val silentLogger = object : Logger {
-        override fun debug(message: String) = Unit
-        override fun info(message: String) = Unit
-        override fun warn(message: String) = Unit
-        override fun error(message: String, error: Throwable?) = Unit
-    }
-
-    private fun client(engine: MockEngine, logger: Logger = silentLogger) = KtorHttpClient(
+    private fun client(engine: MockEngine, logger: Logger = SilentLogger) = KtorHttpClient(
         logger = logger,
         config = HttpClientConfig(enableRetry = false),
         engine = engine,
@@ -60,107 +43,87 @@ class KtorHttpClientCancellationTest {
     }
 
     /**
-     * Cancels a request parked inside the engine and observes what the request produced.
-     *
-     * The caller itself is not cancelled, so a [ServiceError] the transport returned for a
-     * request it cancelled is observable here — that is the failure this class pins down.
+     * Cancels a request parked inside the engine and observes what the request produced. The
+     * caller itself is not cancelled, so a [ServiceError] returned for a cancelled request is
+     * observable here.
      */
     private fun cancelledRequestProducesNothing(
+        label: String,
         request: suspend (KtorHttpClient) -> Result<Any, ServiceError>
     ) = runBlocking {
         val entered = CompletableDeferred<Unit>()
         val completed = CompletableDeferred<Result<Any, ServiceError>>()
         val http = client(hangingEngine(entered))
         val requestJob = launch(Dispatchers.IO) {
-            @Suppress("UNCHECKED_CAST")
-            completed.complete(request(http) as Result<Any, ServiceError>)
+            completed.complete(request(http))
         }
         entered.await()
         requestJob.cancel()
         // Grace for a transport that wrongly reports the cancellation as a failure.
         delay(100)
-        assertFalse(completed.isCompleted, "a cancelled request must not surface as a ServiceError")
-        assertTrue(requestJob.isCancelled)
+        assertFalse(completed.isCompleted, "$label: a cancelled request must not surface as a ServiceError")
+        assertTrue(requestJob.isCancelled, label)
+    }
+
+    private data class BodyCase(
+        val label: String,
+        val status: HttpStatusCode,
+        val request: suspend (KtorHttpClient) -> Result<Any, ServiceError>
+    )
+
+    private fun method(
+        label: String,
+        request: suspend (KtorHttpClient) -> Result<Any, ServiceError>
+    ) = label to request
+
+    @Test
+    fun `a cancelled request surfaces cancellation, not a network error, for every method`() {
+        val methods = listOf(
+            method("POST") { it.post("https://provider.invalid/translate", emptyMap(), "{}", emptyMap()) },
+            method("GET") { it.get("https://provider.invalid/languages", emptyMap(), emptyMap()) },
+            method("form POST") {
+                it.postForm("https://provider.invalid/translate", emptyMap(), emptyMap(), emptyMap(), emptyMap())
+            },
+            method("form-bytes POST") {
+                it.postFormBytes("https://provider.invalid/translate", emptyMap(), emptyMap(), emptyMap(), emptyMap())
+            },
+            method("GET bytes") { it.getBytes("https://provider.invalid/audio", emptyMap(), emptyMap()) },
+            method("bytes POST") { it.postBytes("https://provider.invalid/upload", emptyMap(), ByteArray(0), emptyMap()) }
+        )
+        for ((label, request) in methods) cancelledRequestProducesNothing(label, request)
     }
 
     @Test
-    fun `a cancelled POST surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing { it.post("https://provider.invalid/translate", emptyMap(), "{}", emptyMap()) }
-    }
-
-    @Test
-    fun `a cancelled GET surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing { it.get("https://provider.invalid/languages", emptyMap(), emptyMap()) }
-    }
-
-    @Test
-    fun `a cancelled form POST surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing {
-            it.postForm("https://provider.invalid/translate", emptyMap(), emptyMap(), emptyMap(), emptyMap())
-        }
-    }
-
-    @Test
-    fun `a cancelled form-bytes POST surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing {
-            it.postFormBytes("https://provider.invalid/translate", emptyMap(), emptyMap(), emptyMap(), emptyMap())
-        }
-    }
-
-    @Test
-    fun `a cancelled GET-bytes request surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing { it.getBytes("https://provider.invalid/audio", emptyMap(), emptyMap()) }
-    }
-
-    @Test
-    fun `a cancelled bytes POST surfaces cancellation, not a network error`() {
-        cancelledRequestProducesNothing { it.postBytes("https://provider.invalid/upload", emptyMap(), ByteArray(0), emptyMap()) }
-    }
-
-    @Test
-    fun `a cancellation during the error-body read surfaces cancellation, not a service error`() = runBlocking {
-        val responded = CompletableDeferred<Unit>()
-        // A 500 whose body never arrives: the error branch reads the body, and that read
-        // suspends — cancellation lands inside the response path.
-        val engine = MockEngine {
-            val response = respond(content = ByteChannel(true), status = HttpStatusCode.InternalServerError)
-            responded.complete(Unit)
-            response
-        }
-        val logger = CapturingLogger()
-        client(engine, logger).use { http ->
-            val call = async(Dispatchers.IO) { http.get("https://provider.invalid/translate", emptyMap(), emptyMap()) }
-            responded.await()
-            // Real time for the IO thread to park inside the never-arriving body read.
-            delay(200)
-            call.cancel()
-            assertFailsWith<CancellationException> { call.await() }
-            assertTrue(
-                logger.messages.none { it.contains("request failed") },
-                "a cancelled request must not be reported as a failed request: ${logger.messages}"
-            )
-        }
-    }
-
-    @Test
-    fun `a cancellation during the success-body read surfaces cancellation, not a network error`() = runBlocking {
-        val responded = CompletableDeferred<Unit>()
-        val engine = MockEngine {
-            val response = respond(content = ByteChannel(true), status = HttpStatusCode.OK)
-            responded.complete(Unit)
-            response
-        }
-        val logger = CapturingLogger()
-        client(engine, logger).use { http ->
-            val call = async(Dispatchers.IO) { http.post("https://provider.invalid/translate", emptyMap(), "{}", emptyMap()) }
-            responded.await()
-            delay(200)
-            call.cancel()
-            assertFailsWith<CancellationException> { call.await() }
-            assertTrue(
-                logger.messages.none { it.contains("request failed") },
-                "a cancelled request must not be reported as a failed request: ${logger.messages}"
-            )
+    fun `a cancellation during the body read surfaces cancellation, not a service error`() = runBlocking {
+        // A body that never arrives: the read suspends, so cancellation lands inside the response path.
+        val cases = listOf(
+            BodyCase("error body", HttpStatusCode.InternalServerError) {
+                it.get("https://provider.invalid/translate", emptyMap(), emptyMap())
+            },
+            BodyCase("success body", HttpStatusCode.OK) {
+                it.post("https://provider.invalid/translate", emptyMap(), "{}", emptyMap())
+            }
+        )
+        for ((label, status, request) in cases) {
+            val responded = CompletableDeferred<Unit>()
+            val engine = MockEngine {
+                val response = respond(content = ByteChannel(true), status = status)
+                responded.complete(Unit)
+                response
+            }
+            val logger = CapturingLogger()
+            client(engine, logger).use { http ->
+                val call = async(Dispatchers.IO) { request(http) }
+                responded.await()
+                // Real time for the IO thread to park inside the never-arriving body read.
+                delay(200)
+                call.cancel()
+                assertFailsWith<CancellationException>(label) { call.await() }
+                assertTrue(
+                    logger.messages.none { it.contains("request failed") },
+                    "$label: a cancelled request must not be reported as failed: ${logger.messages}"
+                )
+            }
         }
     }
 }

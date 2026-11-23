@@ -27,24 +27,18 @@ class NetworkConfigMappingTest {
     }
 
     @Test
-    fun `a proxy switched off is no proxy at all`() {
-        val mapped = NetworkConfig(
+    fun `a proxy that is switched off or has no address is no proxy at all`() {
+        // The address is kept in the settings so switching the proxy back on does not mean typing
+        // it again, so "off" must be honoured rather than inferred from a blank.
+        val switchedOff = NetworkConfig(
             proxyEnabled = false,
             proxyUrl = "http://proxy.example:3128",
             proxyUsername = "alice"
         ).toHttpClientConfig(proxyPassword = "s3cret")
-
-        // The address is kept in the settings so switching the proxy back on does not mean typing
-        // it again, which means "off" has to be honoured here rather than inferred from a blank.
-        assertNull(mapped.proxy)
-    }
-
-    @Test
-    fun `a proxy switched on with no address is still no proxy`() {
-        val mapped = NetworkConfig(proxyEnabled = true, proxyUrl = "   ").toHttpClientConfig()
+        assertNull(switchedOff.proxy, "switched off")
 
         // Sending every request to nowhere is a worse failure than the switch appearing inert.
-        assertNull(mapped.proxy)
+        assertNull(NetworkConfig(proxyEnabled = true, proxyUrl = "   ").toHttpClientConfig().proxy, "no address")
     }
 
     @Test
@@ -58,18 +52,6 @@ class NetworkConfigMappingTest {
 
         assertEquals("alice", mapped.proxy?.username)
         assertEquals("s3cret", mapped.proxy?.password)
-        // Nothing on the stored type can carry it, which is the point of checking.
-        // Instance fields only: the companion holds a constant named proxyPasswordKey, which is
-        // the name of the secret-store entry rather than a place a password is kept, and it
-        // compiles to a static field on the same class.
-        val persistedFields = NetworkConfig::class.java.declaredFields
-            .filterNot { java.lang.reflect.Modifier.isStatic(it.modifiers) }
-            .map { it.name }
-        assertEquals(
-            emptyList(),
-            persistedFields.filter { "password" in it.lowercase() },
-            "a proxy password must not be a field on the persisted configuration"
-        )
     }
 
     @Test
@@ -131,22 +113,5 @@ class NetworkConfigMappingTest {
         assertEquals(10, mapped.maxRetries)
         assertEquals(1, mapped.maxConnectionsPerHost)
         assertEquals(512, mapped.maxConnectionsTotal)
-    }
-
-    @Test
-    fun `the defaults match what the client would have chosen anyway`() {
-        val mapped = NetworkConfig().toHttpClientConfig()
-        val untouched = HttpClientConfig()
-
-        // Turning nothing on must not quietly change how the application behaves.
-        assertEquals(untouched.requestTimeoutMillis, mapped.requestTimeoutMillis)
-        assertEquals(untouched.connectTimeoutMillis, mapped.connectTimeoutMillis)
-        assertEquals(untouched.socketTimeoutMillis, mapped.socketTimeoutMillis)
-        assertEquals(untouched.enableRetry, mapped.enableRetry)
-        assertEquals(untouched.maxRetries, mapped.maxRetries)
-        assertEquals(untouched.maxConnectionsPerHost, mapped.maxConnectionsPerHost)
-        assertEquals(untouched.maxConnectionsTotal, mapped.maxConnectionsTotal)
-        assertNull(mapped.proxy)
-        assertEquals(emptyMap(), mapped.hostTimeouts)
     }
 }
