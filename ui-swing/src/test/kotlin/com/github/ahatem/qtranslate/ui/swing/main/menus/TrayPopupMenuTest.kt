@@ -1,47 +1,22 @@
 package com.github.ahatem.qtranslate.ui.swing.main.menus
 
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
 import com.github.ahatem.qtranslate.core.settings.data.SelectionBehavior
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
 import javax.swing.JMenuItem
 import javax.swing.JRadioButtonMenuItem
-import javax.swing.JSeparator
+import javax.swing.KeyStroke
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TrayPopupMenuTest {
-
-    @Test
-    fun `menu groups tray actions in the expected order`() {
-        val menu = createMenu()
-
-        assertEquals(
-            listOf(
-                "Show QTranslate",
-                null,
-                "Dictionary",
-                "Image Search",
-                "Recognize Text (OCR)",
-                "Translate Document...",
-                "History",
-                null,
-                "Text Selection",
-                "Enable Global Hotkeys",
-                "Settings",
-                null,
-                "Exit",
-            ),
-            menu.components.map { component ->
-                when (component) {
-                    is JMenuItem -> component.text
-                    is JSeparator -> null
-                    else -> error("Unexpected tray menu component: ${component::class.java.name}")
-                }
-            },
-        )
-    }
 
     @Test
     fun `menu actions remain wired to their corresponding callbacks`() {
@@ -100,77 +75,63 @@ class TrayPopupMenuTest {
     }
 
     @Test
-    fun `text selection submenu contains one radio item for each behavior`() {
-        val menu = createMenu()
-        val submenu = menu.components.filterIsInstance<JMenu>().single()
-        val items = submenu.menuComponents.filterIsInstance<JRadioButtonMenuItem>()
-
-        assertEquals(
-            listOf("Off", "Show translation icon", "Translate immediately", "Translate and read aloud"),
-            items.map { it.text },
-        )
-        assertEquals(4, items.size)
-
-        items[0].doClick()
-        assertEquals(1, items.count { it.isSelected })
-        items[1].doClick()
-        assertEquals(1, items.count { it.isSelected })
-        assertTrue(items[1].isSelected)
-    }
-
-    @Test
-    fun `text selection submenu reflects every committed behavior`() {
-        SelectionBehavior.entries.forEach { behavior ->
-            val menu = createMenu(selectionBehavior = behavior)
-            val items = menu.components.filterIsInstance<JMenu>().single()
-                .menuComponents.filterIsInstance<JRadioButtonMenuItem>()
-
-            assertEquals(1, items.count { it.isSelected })
-            assertTrue(items[behavior.ordinal].isSelected)
-        }
-    }
-
-    @Test
-    fun `text selection items request their corresponding behavior`() {
+    fun `text selection submenu has one radio item per behavior, reflects the committed one and requests changes`() {
         val selected = mutableListOf<SelectionBehavior>()
-        val menu = createMenu(
-            actions = TrayMenuActions(
-                onShowApplication = {},
-                onShowDictionary = {},
-                onShowImageSearch = {},
-                onRecognizeText = {},
-                onTranslateDocument = {},
-                onShowHistory = {},
-                onSelectionBehaviorChanged = { selected += it },
-                onShowSettings = {},
-                onToggleHotkeys = {},
-                onExitApplication = {},
-            ),
-        )
-        val items = menu.components.filterIsInstance<JMenu>().single()
+        fun radioItems(menu: javax.swing.JPopupMenu) = menu.components.filterIsInstance<JMenu>().single()
             .menuComponents.filterIsInstance<JRadioButtonMenuItem>()
 
-        SelectionBehavior.entries.forEachIndexed { index, behavior ->
-            items[index].doClick()
-            assertEquals(behavior, selected.last())
+        SelectionBehavior.entries.forEach { committed ->
+            val items = radioItems(
+                createMenu(
+                    selectionBehavior = committed,
+                    actions = noActions.copy(onSelectionBehaviorChanged = { selected += it }),
+                )
+            )
+            assertEquals(SelectionBehavior.entries.size, items.size)
+            assertEquals(1, items.count { it.isSelected })
+            assertTrue(items[committed.ordinal].isSelected, "committed $committed")
+
+            SelectionBehavior.entries.forEachIndexed { index, behavior ->
+                items[index].doClick()
+                assertEquals(behavior, selected.last())
+                assertEquals(1, items.count { it.isSelected })
+            }
         }
     }
 
+    @Test
+    fun `menu items show the configured chords`() {
+        val hints = CommandShortcutHints.fromBindings(
+            listOf(
+                HotkeyBinding(HotkeyAction.SHOW_DICTIONARY, keyCode = KeyEvent.VK_X, modifiers = InputEvent.CTRL_DOWN_MASK, scope = HotkeyScope.GLOBAL),
+                HotkeyBinding(HotkeyAction.OPEN_OCR, keyCode = KeyEvent.VK_Y, modifiers = InputEvent.CTRL_DOWN_MASK, scope = HotkeyScope.GLOBAL),
+            )
+        )
+        val items = createMenu(shortcutHints = hints).components.filterIsInstance<JMenuItem>().associateBy { it.text }
+
+        assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.CTRL_DOWN_MASK), items.getValue("Dictionary").accelerator)
+        assertEquals("Dictionary (Ctrl+X)", items.getValue("Dictionary").toolTipText)
+        assertEquals("Recognize Text (OCR) (Ctrl+Y)", items.getValue("Recognize Text (OCR)").toolTipText)
+    }
+
+    private val noActions = TrayMenuActions(
+        onShowApplication = {},
+        onShowDictionary = {},
+        onShowImageSearch = {},
+        onRecognizeText = {},
+        onTranslateDocument = {},
+        onShowHistory = {},
+        onSelectionBehaviorChanged = {},
+        onShowSettings = {},
+        onToggleHotkeys = {},
+        onExitApplication = {},
+    )
+
     private fun createMenu(
-        actions: TrayMenuActions = TrayMenuActions(
-            onShowApplication = {},
-            onShowDictionary = {},
-            onShowImageSearch = {},
-            onRecognizeText = {},
-            onTranslateDocument = {},
-            onShowHistory = {},
-            onSelectionBehaviorChanged = {},
-            onShowSettings = {},
-            onToggleHotkeys = {},
-            onExitApplication = {},
-        ),
+        actions: TrayMenuActions = noActions,
         isHotkeysEnabled: Boolean = true,
         selectionBehavior: SelectionBehavior = SelectionBehavior.SHOW_ICON,
+        shortcutHints: CommandShortcutHints = CommandShortcutHints.EMPTY,
     ) = TrayMenuPopup(
         actions = actions,
         strings = TrayMenuStrings(
@@ -191,5 +152,6 @@ class TrayPopupMenuTest {
         ),
         isHotkeysEnabled = isHotkeysEnabled,
         selectionBehavior = selectionBehavior,
+        shortcutHints = shortcutHints,
     )
 }

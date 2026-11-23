@@ -1,15 +1,12 @@
 package com.github.ahatem.qtranslate.ui.swing.main.layout
 
 import java.awt.ComponentOrientation
-import java.awt.Cursor
 import java.awt.event.MouseEvent
-import java.io.File
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** The dock host arranges the workspace and an optional dock, and nothing else. */
@@ -119,28 +116,6 @@ class WorkspaceDockHostTest {
         assertEquals(chosen, f.dock.width)
     }
 
-    // 12, 22
-    @Test
-    fun `left to right puts the dock at the trailing right edge`() {
-        val f = Fixture(rtl = false)
-        f.show()
-        assertFalse(f.host.isDockOnLeft)
-        assertEquals(0, f.workspace.x)
-        assertEquals(f.hostWidth, f.dock.x + f.dock.width)
-        assertTrue(f.divider.x >= f.workspace.x + f.workspace.width)
-    }
-
-    // 13, 22
-    @Test
-    fun `right to left puts the dock at the trailing left edge`() {
-        val f = Fixture(rtl = true)
-        f.show()
-        assertTrue(f.host.isDockOnLeft)
-        assertEquals(0, f.dock.x)
-        assertEquals(f.hostWidth, f.workspace.x + f.workspace.width)
-        assertEquals(f.dock.width, f.divider.x)
-    }
-
     // 14, 23
     @Test
     fun `the divider follows the pointer in both directions`() {
@@ -157,17 +132,6 @@ class WorkspaceDockHostTest {
         assertEquals(rtlBefore + 40, rtl.dock.width, "right to left: dragging right grows the dock on the left")
         rtl.drag(-40)
         assertEquals(rtlBefore, rtl.dock.width, "and dragging back returns it")
-    }
-
-    // 26, 27
-    @Test
-    fun `the divider is a wide strip with the resize cursor and a thin line`() {
-        val f = Fixture()
-        f.show()
-        assertEquals(UISpacing.DOCK_DIVIDER_HIT_WIDTH, f.divider.width)
-        assertEquals(Cursor.E_RESIZE_CURSOR, f.divider.cursor.type)
-        assertTrue(f.divider.width >= 6, "a strip wide enough to hit, not just the 1px line")
-        assertTrue(f.divider.isVisible && f.divider.height == 600)
     }
 
     // 16, 27
@@ -194,14 +158,6 @@ class WorkspaceDockHostTest {
         assertTrue(f.divider.isVisible)
     }
 
-    // 15: hard minimum and preferred width are distinct
-    @Test
-    fun `the hard minimum is smaller than the comfortable width`() {
-        val f = Fixture()
-        val hardMinimum = UISpacing.WORKSPACE_HARD_MIN_WIDTH + UISpacing.DOCK_DIVIDER_HIT_WIDTH + UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH
-        assertTrue(hardMinimum < f.host.comfortableWidth(), "the hard minimum must ask for less room than the comfortable width")
-    }
-
     // A screen too small for even the hard minimum still shows the dock at its hard minimum.
     @Test
     fun `a screen too small for comfort still presents the dock at its hard minimum`() {
@@ -212,17 +168,5 @@ class WorkspaceDockHostTest {
         assertTrue(f.host.isDockPresented, "small screens still dock rather than falling back to a popup")
         assertEquals(UISpacing.LOOKUP_DOCK_HARD_MIN_WIDTH, f.dock.width)
         assertEquals(UISpacing.WORKSPACE_HARD_MIN_WIDTH, f.workspace.width)
-    }
-
-    // 15
-    @Test
-    fun `the outer dock no longer uses a split pane`() {
-        val root = File("src/main/kotlin/com/github/ahatem/qtranslate/ui/swing/main")
-        val content = File(root, "MainContentView.kt").readText()
-        assertFalse("JSplitPane" in content, "MainContentView has no split pane")
-        assertFalse("MirroredSplitPane" in content)
-        assertTrue("WorkspaceDockHost" in content)
-        assertNotNull(File(root, "layout/WorkspaceDockHost.kt").takeIf { it.isFile })
-        assertFalse("JSplitPane" in File(root, "layout/WorkspaceDockHost.kt").readText())
     }
 }

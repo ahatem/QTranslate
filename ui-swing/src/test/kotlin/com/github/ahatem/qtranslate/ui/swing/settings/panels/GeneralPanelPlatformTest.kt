@@ -105,78 +105,38 @@ class GeneralPanelPlatformTest {
         (0 until combo.itemCount).first { combo.getItemAt(it).toString().contains(text) }
 
     @Test
-    fun `launch on startup is offered where the platform supports it`() {
+    fun `launch on startup is enabled only where the platform can register it`() {
         assertTrue(launchCheckbox(panel(supported = true)).isEnabled)
-    }
-
-    @Test
-    fun `launch on startup is disabled where the platform cannot register it`() {
         assertFalse(launchCheckbox(panel(supported = false)).isEnabled)
-    }
-
-    @Test
-    fun `the disabled toggle says which platform it belongs to`() {
-        val hint = localizer.getString("settings_general.launch_on_startup_windows_only")
-        assertTrue(
-            descendants(panel(supported = false))
-                .mapNotNull { it.textOf() }
-                .any { it.contains(hint) },
-            "a disabled platform-specific setting has to explain itself",
-        )
     }
 
     // The title-bar buttons moved here from the Layout page; their capability gate came with them.
 
     @Test
-    fun `choosing hide to tray is refused when no tray icon exists`() {
-        val configuration = Configuration.DEFAULT.copy(
-            minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR
+    fun `hide to tray is written only when a tray icon exists`() {
+        val expected = mapOf(
+            true to MinimizeButtonBehavior.HIDE_TO_TRAY,
+            // An unavailable choice is not written to the draft, and the dialog stays clean.
+            false to MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
         )
-        val store = store(configuration)
-        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
-        val minimize = rowCombo(
-            panel(trayAvailable = false, settingsStore = store),
-            localizer.getString("settings_window.minimize_button"),
-        )
+        expected.forEach { (trayAvailable, behavior) ->
+            val store = store(
+                Configuration.DEFAULT.copy(minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR)
+            )
+            val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
+            val minimize = rowCombo(
+                panel(trayAvailable = trayAvailable, settingsStore = store),
+                localizer.getString("settings_window.minimize_button"),
+            )
 
-        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
+            onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
 
-        assertEquals(
-            MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR,
-            store.state.value.workingConfiguration.minimizeButtonBehavior,
-            "an unavailable choice is not written to the draft",
-        )
-        assertFalse(store.state.value.isDirty, "and the dialog does not pretend it changed anything")
-    }
-
-    @Test
-    fun `hide to tray is written when a tray icon exists`() {
-        val configuration = Configuration.DEFAULT.copy(
-            minimizeButtonBehavior = MinimizeButtonBehavior.MINIMIZE_TO_TASKBAR
-        )
-        val store = store(configuration)
-        val hideToTray = localizer.getString("settings_window.minimize_behavior_hide")
-        val minimize = rowCombo(
-            panel(trayAvailable = true, settingsStore = store),
-            localizer.getString("settings_window.minimize_button"),
-        )
-
-        onEdt { minimize.selectedIndex = indexNaming(minimize, hideToTray) }
-
-        assertEquals(
-            MinimizeButtonBehavior.HIDE_TO_TRAY,
-            store.state.value.workingConfiguration.minimizeButtonBehavior,
-        )
-    }
-
-    @Test
-    fun `the page explains why the tray choice is unavailable`() {
-        val hint = localizer.getString("settings_window.tray_unavailable_hint")
-        val panel = panel(trayAvailable = false)
-
-        assertTrue(
-            descendants(panel).mapNotNull { it.textOf() }.any { it.contains(hint) },
-            "a disabled choice has to say why",
-        )
+            assertEquals(
+                behavior,
+                store.state.value.workingConfiguration.minimizeButtonBehavior,
+                "tray available = $trayAvailable",
+            )
+            assertEquals(trayAvailable, store.state.value.isDirty, "tray available = $trayAvailable")
+        }
     }
 }

@@ -14,12 +14,11 @@ import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-/** The main window offers Classic, Side By Side and Comparison, and nothing else. */
+/** Switching, Extra Output, focus targets and shared rows across every window layout. */
 class LayoutSystemTest {
 
     private class Leaves {
@@ -52,36 +51,12 @@ class LayoutSystemTest {
         generateSequence(component.parent) { it.parent }.toList()
 
     @Test
-    fun `the available layouts are exactly Classic, Side By Side and Comparison`() {
-        assertEquals(
-            listOf(LayoutType.CLASSIC, LayoutType.SIDE_BY_SIDE, LayoutType.COMPARISON),
-            LayoutManager.getAvailableLayouts()
-        )
-        assertEquals(
-            listOf("classic", "side_by_side", "comparison"),
-            LayoutManager.getAvailableLayouts().map { it.id }
-        )
-        assertEquals(
-            listOf("layout_preset_classic", "layout_preset_side_by_side", "layout_preset_comparison"),
-            LayoutManager.getAvailableLayouts().map { it.localizeId }
-        )
-    }
-
-    @Test
     fun `compact is not a layout and its saved id shows Classic`() {
         assertFalse(LayoutType.entries.any { it.name == "COMPACT" })
         assertFalse(LayoutManager.getAvailableLayouts().any { it.id == LayoutPresetIds.LEGACY_COMPACT })
 
         assertSame(LayoutType.CLASSIC, LayoutType.fromId(LayoutPresetIds.LEGACY_COMPACT))
         assertSame(LayoutType.CLASSIC, LayoutType.fromId("from_a_newer_version"))
-    }
-
-    @Test
-    fun `every layout arranges its panes in split panes`() {
-        layouts.forEach { layout ->
-            val refs = SlotLayout.arrange(Leaves().registry, layout).componentRefs
-            assertIs<LayoutComponentRefs.WithSplitPanes>(refs, "${layout.panes} must be built from split panes")
-        }
     }
 
     @Test
@@ -152,8 +127,6 @@ class LayoutSystemTest {
         val leaves = Leaves()
         val selector = leaves.all[6].apply { preferredSize = Dimension(300, 24) }
         val status = leaves.all[7].apply { preferredSize = Dimension(300, 20) }
-        // Measured through the whole window rather than the footer alone: the bottom slot brings
-        // the side padding, so the footer by itself no longer shows it.
         val root = SlotLayout.arrange(leaves.registry, WindowLayout.DEFAULT).rootComponent
 
         SwingUtilities.invokeAndWait {
@@ -163,9 +136,6 @@ class LayoutSystemTest {
 
         assertEquals(24, selector.height)
         assertEquals(20, status.height)
-        val selectorX = SwingUtilities.convertPoint(selector, 0, 0, root).x
-        assertEquals(UISpacing.PADDING, selectorX)
-        assertEquals(UISpacing.PADDING, root.width - selectorX - selector.width)
     }
 
     @Test

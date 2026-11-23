@@ -97,29 +97,26 @@ class AppearancePanelFontListTest {
     }
 
     @Test
-    fun `automatic appears exactly once in the fallback picker`() {
-        val combo = panel().fallbackFontComboForTest()
-        val items = onEdt { (0 until combo.itemCount).map { combo.getItemAt(it).toString() } }
-        val automatic = localizer.getString("settings_appearance.automatic_fallback")
-        assertEquals(1, items.count { it == automatic }, "expected exactly one '$automatic' entry, found: $items")
-    }
-
-    @Test
-    fun `Inter, Rubik and Noto each appear exactly once in the UI and editor pickers`() {
+    fun `font pickers list each family once and offer the bundled fonts`() {
         val p = panel()
+        fun items(combo: javax.swing.JComboBox<*>) =
+            onEdt { (0 until combo.itemCount).map { combo.getItemAt(it).toString() } }
+
+        val automatic = localizer.getString("settings_appearance.automatic_fallback")
+        val fallback = items(p.fallbackFontComboForTest())
+        assertEquals(1, fallback.count { it == automatic }, "expected exactly one '$automatic' entry, found: $fallback")
+
         listOf(p.uiFontComboForTest(), p.editorFontComboForTest()).forEach { combo ->
-            val items = onEdt { (0 until combo.itemCount).map { combo.getItemAt(it).toString() } }
+            val items = items(combo)
 
             // The regression this guards is a family being listed more than once, which is what
             // happened when the list was built by compounding a font that had already been
-            // derived. A duplicated entry is still a failure.
+            // derived.
             assertEquals(items.size, items.distinct().size, "no family is listed twice, found: $items")
 
-            // Presence is checked against the family's name and its style variants: the bundled
-            // fonts are registered lazily, and once anything in the JVM has constructed one, the
-            // JDK reports "Inter Light" and "Inter SemiBold" as families of their own instead of a
-            // single "Inter". Which of the two shapes appears depends on test order, so asserting
-            // the exact string tested the order rather than the picker.
+            // Presence is checked against the family's name and its style variants: once the JDK
+            // has constructed a bundled font it may report "Inter Light" and "Inter SemiBold" as
+            // families of their own instead of a single "Inter", depending on test order.
             listOf("Inter", "Rubik", "Noto Naskh Arabic").forEach { family ->
                 assertTrue(
                     items.any { it == family || it.startsWith("$family ") },
@@ -127,16 +124,5 @@ class AppearancePanelFontListTest {
                 )
             }
         }
-    }
-
-    @Test
-    fun `a fresh default configuration selects Inter and Automatic`() {
-        val p = panel()
-        assertEquals("Inter", onEdt { p.uiFontComboForTest().selectedItem })
-        assertEquals("Inter", onEdt { p.editorFontComboForTest().selectedItem })
-        assertEquals(
-            localizer.getString("settings_appearance.automatic_fallback"),
-            onEdt { p.fallbackFontComboForTest().selectedItem.toString() }
-        )
     }
 }

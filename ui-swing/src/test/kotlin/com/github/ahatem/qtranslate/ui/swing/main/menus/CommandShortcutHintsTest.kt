@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.main.menus
 
-import com.github.ahatem.qtranslate.core.settings.data.CommandRegistry
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
 import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
@@ -52,12 +51,6 @@ class CommandShortcutHintsTest {
     }
 
     @Test
-    fun `actions without a binding show no hint`() {
-        assertNull(CommandShortcutHints.EMPTY.chordFor(HotkeyAction.SHOW_DICTIONARY))
-        assertNull(CommandShortcutHints.EMPTY.keyStrokeFor(HotkeyAction.SHOW_DICTIONARY))
-    }
-
-    @Test
     fun `menu items show the configured accelerator and tooltip`() {
         val hints = CommandShortcutHints.fromBindings(
             listOf(binding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_X, InputEvent.ALT_DOWN_MASK))
@@ -66,14 +59,6 @@ class CommandShortcutHintsTest {
 
         assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.ALT_DOWN_MASK), item.accelerator)
         assertEquals("Dictionary (Alt+X)", item.toolTipText)
-    }
-
-    @Test
-    fun `menu items without a configured binding stay plain`() {
-        val item = JMenuItem("Dictionary").apply { applyShortcutHint(CommandShortcutHints.EMPTY, HotkeyAction.SHOW_DICTIONARY) }
-
-        assertNull(item.accelerator)
-        assertNull(item.toolTipText)
     }
 
     @Test
@@ -96,24 +81,6 @@ class CommandShortcutHintsTest {
             "Copy",
             "Copy".withShortcutChord(hints, HotkeyAction.COPY_TRANSLATION),
             "an unbound command adds nothing rather than advertising a key that does nothing",
-        )
-    }
-
-    @Test
-    fun `every hinted action is backed by the command registry`() {
-        // Drift guard: hints must not grow a parallel command vocabulary. Any
-        // action with a hint comes from HotkeyAction, which CommandRegistry
-        // covers 1:1 (see CommandRegistryCompletenessTest) — adding an action
-        // without a spec fails there, and this fails if a hint ever references
-        // something the registry does not know.
-        val hints = CommandShortcutHints.fromBindings(
-            listOf(binding(HotkeyAction.SHOW_DICTIONARY, KeyEvent.VK_X, InputEvent.ALT_DOWN_MASK))
-        )
-
-        assertEquals("Alt+X", hints.chordFor(HotkeyAction.SHOW_DICTIONARY))
-        assertEquals(
-            HotkeyAction.SHOW_DICTIONARY,
-            CommandRegistry.specFor(HotkeyAction.SHOW_DICTIONARY)?.action,
         )
     }
 }

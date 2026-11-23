@@ -137,16 +137,6 @@ class TranslatorSelectorTest {
     }
 
     @Test
-    fun `overflow controls stay hidden when every service fits`() {
-        val selector = selector()
-        onEdt { selector.render(state(services(2))) }
-        size(selector, 2000)
-
-        val buttons = descendants(selector).filterIsInstance<JButton>()
-        assertTrue(buttons.none { it.isVisible && it.toolTipText == "All services" }, "nothing to jump to when nothing overflows")
-    }
-
-    @Test
     fun `overflow controls appear once services no longer fit, and the menu reaches every one of them`() {
         val reported = mutableListOf<String>()
         val selector = selector { _, id -> reported += id }

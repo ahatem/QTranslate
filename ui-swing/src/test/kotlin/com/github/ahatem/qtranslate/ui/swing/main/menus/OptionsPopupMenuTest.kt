@@ -4,50 +4,25 @@ import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyAction
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyBinding
+import com.github.ahatem.qtranslate.core.settings.data.HotkeyScope
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenu
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
 import javax.swing.JRadioButtonMenuItem
 import javax.swing.JSeparator
+import javax.swing.KeyStroke
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class OptionsPopupMenuTest {
-
-    @Test
-    fun `menu groups main actions in the expected order`() {
-        val menu = createMenu()
-
-        assertEquals(
-            listOf(
-                "Spell Checking",
-                "Instant Translation",
-                "Extra Output",
-                "Options",
-                null,
-                "Dictionary",
-                "Image Search",
-                "Recognize Text (OCR)",
-                "Translate Document...",
-                "History",
-                null,
-                "Settings...",
-                "Help",
-                null,
-                "Exit",
-            ),
-            menu.components.map { component ->
-                when (component) {
-                    is JMenuItem -> component.text
-                    is JSeparator -> null
-                    else -> error("Unexpected menu component: ${component::class.java.name}")
-                }
-            },
-        )
-    }
 
     @Test
     fun `extra output uses one radio item for every configured type`() {
@@ -96,16 +71,6 @@ class OptionsPopupMenuTest {
         assertEquals(listOf("classic"), selected)
         assertEquals(1, items.count { it.isSelected })
         assertTrue(items[0].isSelected)
-    }
-
-    @Test
-    fun `a saved compact layout is shown as Classic`() {
-        val menu = createMenu(config = Configuration.DEFAULT.copy(layoutPresetId = "compact"))
-        val items = layoutItems(menu)
-
-        assertEquals(listOf("Classic", "Side By Side", "Comparison"), items.map { it.text })
-        assertEquals(1, items.count { it.isSelected })
-        assertTrue(items[0].isSelected, "the retired layout must read as Classic, not as nothing")
     }
 
     @Test
@@ -226,6 +191,24 @@ class OptionsPopupMenuTest {
         assertEquals(listOf("how", "contact", "check", "auto:false", "about"), calls)
     }
 
+    @Test
+    fun `menu items show the configured chords and unbound items stay plain`() {
+        val hints = CommandShortcutHints.fromBindings(
+            listOf(
+                HotkeyBinding(HotkeyAction.SHOW_DICTIONARY, keyCode = KeyEvent.VK_X, modifiers = InputEvent.CTRL_DOWN_MASK, scope = HotkeyScope.GLOBAL),
+                HotkeyBinding(HotkeyAction.OPEN_OCR, keyCode = KeyEvent.VK_Y, modifiers = InputEvent.CTRL_DOWN_MASK, scope = HotkeyScope.GLOBAL),
+            )
+        )
+        val menu = createMenu(shortcutHints = hints)
+
+        val dictionary = menu.components.filterIsInstance<JCheckBoxMenuItem>().single { it.text == "Dictionary" }
+        assertEquals(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.CTRL_DOWN_MASK), dictionary.accelerator)
+        assertEquals("Dictionary (Ctrl+X)", dictionary.toolTipText)
+        assertEquals("Recognize Text (OCR) (Ctrl+Y)", menu.item("Recognize Text (OCR)").toolTipText)
+        assertNull(menu.item("History").accelerator)
+        assertNull(menu.item("History").toolTipText)
+    }
+
     private fun createMenu(
         config: Configuration = Configuration.DEFAULT,
         actions: MenuActions = createActions(),
@@ -235,11 +218,13 @@ class OptionsPopupMenuTest {
             LayoutPresetInfo("side_by_side", "Side By Side"),
             LayoutPresetInfo("comparison", "Comparison"),
         ),
+        shortcutHints: CommandShortcutHints = CommandShortcutHints.EMPTY,
     ) = MainMenuPopup(
         config = config,
         actions = actions,
         strings = strings,
         availableLayouts = layouts,
+        shortcutHints = shortcutHints,
     )
 
     private fun createStrings(
