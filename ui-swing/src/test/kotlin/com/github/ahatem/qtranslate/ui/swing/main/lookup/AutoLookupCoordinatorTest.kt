@@ -84,13 +84,25 @@ class AutoLookupCoordinatorTest {
     }
 
     @Test
-    fun `translated snapshot is trimmed before updating the inline definition`() = check {
-        finish(translated = " hola ")
-        assertEquals(
-            MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
-            nextIntent()
-        )
-        assertNoMoreActions()
+    fun `snapshots are trimmed before updating the inline definition`() {
+        check {
+            finish(translated = " hola ")
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
+                nextIntent(),
+                "translated source",
+            )
+            assertNoMoreActions()
+        }
+        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE)) {
+            finish(input = " hello ")
+            assertEquals(
+                MainIntent.UpdateInlineDefinition("hello", LanguageCode.ENGLISH, "hola", LanguageCode.ARABIC),
+                nextIntent(),
+                "source source",
+            )
+            assertNoMoreActions()
+        }
     }
 
     @Test
@@ -111,17 +123,6 @@ class AutoLookupCoordinatorTest {
             finish()
             assertEquals(
                 MainIntent.UpdateInlineDefinition("hello", LanguageCode.FRENCH, "hola", LanguageCode.ARABIC),
-                nextIntent()
-            )
-            assertNoMoreActions()
-        }
-
-    @Test
-    fun `source snapshot is trimmed before updating the inline definition`() =
-        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE)) {
-            finish(input = " hello ")
-            assertEquals(
-                MainIntent.UpdateInlineDefinition("hello", LanguageCode.ENGLISH, "hola", LanguageCode.ARABIC),
                 nextIntent()
             )
             assertNoMoreActions()
@@ -176,41 +177,35 @@ class AutoLookupCoordinatorTest {
         }
 
     @Test
-    fun `translated auto lookup carries the source language as the pair`() =
-        check(initial = MainState(
+    fun `auto lookup carries the other language as the pair`() {
+        val initial = MainState(
             isLookupDockOpen = true,
             sourceLanguage = LanguageCode.ITALIAN,
-            targetLanguage = LanguageCode.ENGLISH
-        )) {
+            targetLanguage = LanguageCode.ENGLISH,
+        )
+        check(initial = initial) {
             finish(input = "riso", translated = "rice")
             assertEquals(
                 MainIntent.UpdateInlineDefinition("rice", LanguageCode.ENGLISH, "riso", LanguageCode.ITALIAN),
-                nextIntent()
+                nextIntent(),
+                "translated source",
             )
             assertEquals("rice" to true, withTimeout(5_000) { dockWords.receive() })
             assertEquals(MainIntent.LookupWord("rice", LanguageCode.ENGLISH, LanguageCode.ITALIAN), nextIntent())
             assertNoMoreActions()
         }
-
-    @Test
-    fun `source auto lookup carries the target language as the pair`() =
-        check(
-            config = Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE),
-            initial = MainState(
-                isLookupDockOpen = true,
-                sourceLanguage = LanguageCode.ITALIAN,
-                targetLanguage = LanguageCode.ENGLISH
-            )
-        ) {
+        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.SOURCE), initial) {
             finish(input = "riso", translated = "rice")
             assertEquals(
                 MainIntent.UpdateInlineDefinition("riso", LanguageCode.ITALIAN, "rice", LanguageCode.ENGLISH),
-                nextIntent()
+                nextIntent(),
+                "source source",
             )
             assertEquals("riso" to true, withTimeout(5_000) { dockWords.receive() })
             assertEquals(MainIntent.LookupWord("riso", LanguageCode.ITALIAN, LanguageCode.ENGLISH), nextIntent())
             assertNoMoreActions()
         }
+    }
 
     @Test
     fun `closed or other-tool dock is not opened automatically`() {
@@ -267,8 +262,6 @@ class AutoLookupCoordinatorTest {
                     dictionaryAutoSource = DictionaryAutoSource.TRANSLATED
                 )
             )
-            // Turning automatic lookup on is a real state change now, so the word already on
-            // screen is looked up without waiting for the next translation.
             assertEquals(
                 MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
                 nextIntent()
@@ -283,14 +276,6 @@ class AutoLookupCoordinatorTest {
         }
 
     @Test
-    fun `off means no automatic lookup at all`() =
-        check(Configuration.DEFAULT.copy(dictionaryAutoSource = DictionaryAutoSource.OFF)) {
-            finish()
-            assertEquals(MainIntent.UpdateInlineDefinition(""), nextIntent())
-            assertNoMoreActions()
-        }
-
-    @Test
     fun `the floating popup preference does not gate automatic lookup`() =
         check(Configuration.DEFAULT.copy(isDictionaryAutoPopupEnabled = false)) {
             finish()
@@ -298,18 +283,6 @@ class AutoLookupCoordinatorTest {
                 MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
                 nextIntent()
             )
-            assertNoMoreActions()
-        }
-
-    @Test
-    fun `automatic lookup never opens the floating dictionary popup`() =
-        check(Configuration.DEFAULT) {
-            finish()
-            assertEquals(
-                MainIntent.UpdateInlineDefinition("hola", LanguageCode.ARABIC, "hello", LanguageCode.ENGLISH),
-                nextIntent()
-            )
-            // The popup opens on request (Ctrl+D) only; automatic lookup must not summon it.
             assertNoMoreActions()
         }
 }

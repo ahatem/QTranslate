@@ -304,7 +304,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * Issue #385: one conflicting global binding must not reject the whole configuration. The
+     * One conflicting global binding must not reject the whole configuration. The
      * native backend aborts the apply at the first refused registration and rolls the entire
      * set back, so at startup a single shortcut owned by another application used to leave
      * every global hotkey unregistered.
@@ -494,75 +494,49 @@ class MainGlobalKeyListenerTest {
     }
 
     @Test
-    fun `tap then pause resume tap does not trigger`() = runTest {
-        val harness = harness()
-        harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
-        harness.listener.initialize()
-        advanceUntilIdle()
+    fun `taps on either side of a pause never combine into a trigger`() = runTest {
+        fun tap(h: Harness, at: Long) {
+            h.backend.emit(ctrlKey(true, at))
+            h.backend.emit(ctrlKey(false, at))
+        }
+        val scenarios: List<Pair<String, (Harness) -> Unit>> = listOf(
+            "tap, pause, resume, tap" to { h ->
+                tap(h, 1000L)
+                h.setPaused(true)
+                h.setPaused(false)
+                tap(h, 1100L)
+            },
+            "two taps during pause" to { h ->
+                h.setPaused(true)
+                tap(h, 1000L)
+                tap(h, 1100L)
+                h.setPaused(false)
+            },
+            "tap during pause, tap after resume" to { h ->
+                h.setPaused(true)
+                tap(h, 1000L)
+                h.setPaused(false)
+                tap(h, 1100L)
+            },
+            "taps before, during and after pause" to { h ->
+                tap(h, 1000L)
+                h.setPaused(true)
+                tap(h, 1050L)
+                tap(h, 1100L)
+                h.setPaused(false)
+                tap(h, 1200L)
+            },
+        )
+        scenarios.forEach { (label, script) ->
+            val harness = harness()
+            harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
+            harness.listener.initialize()
+            advanceUntilIdle()
 
-        harness.backend.emit(ctrlKey(true, 1000L))
-        harness.backend.emit(ctrlKey(false, 1000L))
-        harness.setPaused(true)
-        harness.setPaused(false)
-        harness.backend.emit(ctrlKey(true, 1100L))
-        harness.backend.emit(ctrlKey(false, 1100L))
-        advanceUntilIdle()
-        assertEquals(0, harness.shows)
-    }
-
-    @Test
-    fun `two taps during pause do not trigger after resume`() = runTest {
-        val harness = harness()
-        harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
-        harness.listener.initialize()
-        advanceUntilIdle()
-
-        harness.setPaused(true)
-        harness.backend.emit(ctrlKey(true, 1000L))
-        harness.backend.emit(ctrlKey(false, 1000L))
-        harness.backend.emit(ctrlKey(true, 1100L))
-        harness.backend.emit(ctrlKey(false, 1100L))
-        harness.setPaused(false)
-        advanceUntilIdle()
-        assertEquals(0, harness.shows)
-    }
-
-    @Test
-    fun `tap during pause does not combine with tap after resume`() = runTest {
-        val harness = harness()
-        harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
-        harness.listener.initialize()
-        advanceUntilIdle()
-
-        harness.setPaused(true)
-        harness.backend.emit(ctrlKey(true, 1000L))
-        harness.backend.emit(ctrlKey(false, 1000L))
-        harness.setPaused(false)
-        harness.backend.emit(ctrlKey(true, 1100L))
-        harness.backend.emit(ctrlKey(false, 1100L))
-        advanceUntilIdle()
-        assertEquals(0, harness.shows)
-    }
-
-    @Test
-    fun `taps around pause activity do not combine after resume`() = runTest {
-        val harness = harness()
-        harness.set(InputRuntimeState(bindings = bindings(showMainWindowBinding())))
-        harness.listener.initialize()
-        advanceUntilIdle()
-
-        harness.backend.emit(ctrlKey(true, 1000L))
-        harness.backend.emit(ctrlKey(false, 1000L))
-        harness.setPaused(true)
-        harness.backend.emit(ctrlKey(true, 1050L))
-        harness.backend.emit(ctrlKey(false, 1050L))
-        harness.backend.emit(ctrlKey(true, 1100L))
-        harness.backend.emit(ctrlKey(false, 1100L))
-        harness.setPaused(false)
-        harness.backend.emit(ctrlKey(true, 1200L))
-        harness.backend.emit(ctrlKey(false, 1200L))
-        advanceUntilIdle()
-        assertEquals(0, harness.shows)
+            script(harness)
+            advanceUntilIdle()
+            assertEquals(0, harness.shows, label)
+        }
     }
 
     @Test
@@ -1316,21 +1290,6 @@ class MainGlobalKeyListenerTest {
     }
 
     @Test
-    fun `very fast tap performs one capture`() = runTest {
-        val harness = Harness(scope = this, captureFactory = successCapture("word"))
-        val injections = mutableListOf<Unit>()
-        harness.set(InputRuntimeState(bindings = imagesBinding()))
-        harness.listener.initialize()
-        harness.listener.copyInjector = recordInjector(injections)
-        advanceUntilIdle()
-
-        harness.emitHotkey(HotkeyAction.SHOW_IMAGES)
-        advanceUntilIdle()
-        assertEquals(1, injections.size)
-        assertEquals(listOf("word"), harness.imageQueries)
-    }
-
-    @Test
     fun `trigger main key held forever means no injection and no dispatch`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))
         val injections = mutableListOf<Unit>()
@@ -1999,7 +1958,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(listOf("word"), harness.imageQueries)
     }
 
-    /** 1. Held well past the old arbitrary settle delay: nothing starts until release. */
+    /** Held well past the old arbitrary settle delay: nothing starts until release. */
     @Test
     fun `local ctrl shift shortcut held over 500ms captures only after release`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))
@@ -2021,22 +1980,33 @@ class MainGlobalKeyListenerTest {
         assertEquals(listOf("word"), harness.imageQueries)
     }
 
-    /** 2. A fast tap already neutral: exactly one capture, no wait. */
     @Test
-    fun `local fast tap captures exactly once`() = runTest {
-        val harness = Harness(scope = this, captureFactory = successCapture("word"))
-        val injections = mutableListOf<Unit>()
-        harness.listener.initialize()
-        harness.listener.copyInjector = recordInjector(injections)
-
-        harness.listener.dispatchLocalAction(localSelectionBinding())
+    fun `a fast tap captures exactly once, from a global hotkey and from a local trigger`() = runTest {
+        val global = Harness(scope = this, captureFactory = successCapture("word"))
+        val globalInjections = mutableListOf<Unit>()
+        global.set(InputRuntimeState(bindings = imagesBinding()))
+        global.listener.initialize()
+        global.listener.copyInjector = recordInjector(globalInjections)
         advanceUntilIdle()
-        assertEquals(1, injections.size)
-        assertEquals(listOf("word"), harness.imageQueries)
+
+        global.emitHotkey(HotkeyAction.SHOW_IMAGES)
+        advanceUntilIdle()
+        assertEquals(1, globalInjections.size, "global hotkey")
+        assertEquals(listOf("word"), global.imageQueries)
+
+        val local = Harness(scope = this, captureFactory = successCapture("word"))
+        val localInjections = mutableListOf<Unit>()
+        local.listener.initialize()
+        local.listener.copyInjector = recordInjector(localInjections)
+
+        local.listener.dispatchLocalAction(localSelectionBinding())
+        advanceUntilIdle()
+        assertEquals(1, localInjections.size, "local trigger")
+        assertEquals(listOf("word"), local.imageQueries)
     }
 
     /**
-     * 3 (Ctrl). The Copy modifier is exempt: a held Ctrl is harmless because injection preserves
+     * The Copy modifier is exempt: a held Ctrl is harmless because injection preserves
      * it, so it must NOT block. This is the "do not over-watch" side of the contract.
      */
     @Test
@@ -2053,43 +2023,16 @@ class MainGlobalKeyListenerTest {
         assertEquals(listOf("word"), harness.imageQueries)
     }
 
-    /** 4. Left Shift. */
     @Test
-    fun `local held left shift blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_LEFT_SHIFT)
+    fun `a held shift, alt or meta key blocks local capture until release`() = runTest {
+        listOf(
+            QInputKey.MOD_LEFT_SHIFT, QInputKey.MOD_RIGHT_SHIFT,
+            QInputKey.MOD_LEFT_ALT, QInputKey.MOD_RIGHT_ALT,
+            QInputKey.MOD_LEFT_META, QInputKey.MOD_RIGHT_META,
+        ).forEach { assertLocalModifierBlocks(it) }
     }
 
-    /** 5. Right Shift (same modifier family as the trigger's Shift: both sides are watched). */
-    @Test
-    fun `local held right shift blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_RIGHT_SHIFT)
-    }
-
-    /** 6. Left Alt. */
-    @Test
-    fun `local held left alt blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_LEFT_ALT)
-    }
-
-    /** 7. Right Alt. */
-    @Test
-    fun `local held right alt blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_RIGHT_ALT)
-    }
-
-    /** 8. Left Meta. */
-    @Test
-    fun `local held left meta blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_LEFT_META)
-    }
-
-    /** 9. Right Meta. */
-    @Test
-    fun `local held right meta blocks until release`() = runTest {
-        assertLocalModifierBlocks(QInputKey.MOD_RIGHT_META)
-    }
-
-    /** 10. Timeout: fail closed with no Copy, no capture, no dispatch. */
+    /** Timeout: fail closed with no Copy, no capture, no dispatch. */
     @Test
     fun `local neutralization timeout performs no capture and no dispatch`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))
@@ -2107,7 +2050,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 11. No key-state capability: the conservative legacy behavior is preserved, capture
+     * No key-state capability: the conservative legacy behavior is preserved, capture
      * proceeds immediately and the neutralizer is never queried.
      */
     @Test
@@ -2131,7 +2074,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(0, backend.keyStateQueries)
     }
 
-    /** 12. Non-selection LOCAL actions stay immediate and never neutralize. */
+    /** Non-selection LOCAL actions stay immediate and never neutralize. */
     @Test
     fun `local non-selection actions are immediate and never neutralize`() = runTest {
         val harness = harness()
@@ -2159,7 +2102,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(0, harness.backend.keyStateQueries)
     }
 
-    /** 13. One LOCAL trigger, exactly one capture, never two. */
+    /** One LOCAL trigger, exactly one capture, never two. */
     @Test
     fun `one local selection trigger produces exactly one capture`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))
@@ -2208,7 +2151,7 @@ class MainGlobalKeyListenerTest {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Mouse-drag selection capture and synthetic Copy contamination (#355).
+    // Mouse-drag selection capture and synthetic Copy contamination.
     //
     // The mouse path has no trigger chord of its own, so nothing used to guarantee that the
     // modifiers the user is holding were up when the synthetic Copy was injected. A Shift
@@ -2278,7 +2221,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 1. The regression itself: a Shift held across the drag must keep the Copy from being
+     * The regression itself: a Shift held across the drag must keep the Copy from being
      * injected, so the target never sees the contaminated Ctrl+Shift+C.
      */
     @Test
@@ -2297,7 +2240,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(1, drag.harness.selections)
     }
 
-    /** 2. No modifier held: the capture stays as immediate as the settle delay allows. */
+    /** No modifier held: the capture stays as immediate as the settle delay allows. */
     @Test
     fun `mouse drag without a modifier captures right after the settle delay`() = runTest {
         val drag = DragHarness(this)
@@ -2314,7 +2257,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 3. A contaminating modifier that stays held beyond the bounded timeout: the capture is
+     * A contaminating modifier that stays held beyond the bounded timeout: the capture is
      * skipped cleanly, with no copy and no dispatch.
      */
     @Test
@@ -2333,7 +2276,7 @@ class MainGlobalKeyListenerTest {
         )
     }
 
-    /** 4. The skipped capture must not touch the clipboard: no snapshot, no restore. */
+    /** The skipped capture must not touch the clipboard: no snapshot, no restore. */
     @Test
     fun `a skipped capture leaves the clipboard untouched`() = runTest {
         val clipboard = RecordingClipboard("original")
@@ -2349,7 +2292,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 5. The Copy modifier itself is exempt: a held Ctrl is harmless, because the injected
+     * The Copy modifier itself is exempt: a held Ctrl is harmless, because the injected
      * chord preserves the requested Ctrl and the target still observes Ctrl+C. This is the
      * "do not over-watch" side of the contract.
      */
@@ -2428,7 +2371,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(0, drag.harness.selections)
     }
 
-    /** 6. Every contaminating modifier blocks, on either side, exactly as the paste path does. */
+    /** Every contaminating modifier blocks, on either side, exactly as the paste path does. */
     @Test
     fun `every contaminating modifier blocks the mouse capture on both sides`() = runTest {
         for (held in listOf(
@@ -2451,7 +2394,7 @@ class MainGlobalKeyListenerTest {
         }
     }
 
-    /** 7. One drag, one copy: the capture is never injected twice for a single gesture. */
+    /** One drag, one copy: the capture is never injected twice for a single gesture. */
     @Test
     fun `one mouse drag injects exactly one copy`() = runTest {
         val drag = DragHarness(this)
@@ -2477,7 +2420,7 @@ class MainGlobalKeyListenerTest {
         assertEquals(2, drag.harness.selections)
     }
 
-    /** 8. Selection capture off: no key-state polling and no copy at all. */
+    /** Selection capture off: no key-state polling and no copy at all. */
     @Test
     fun `selection capture disabled never polls key state nor injects a copy`() = runTest {
         val harness = Harness(scope = this, captureFactory = successCapture("word"))
@@ -2500,7 +2443,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 9. The Double Ctrl sequence has no trigger chord either, so it is neutralized the same
+     * The Double Ctrl sequence has no trigger chord either, so it is neutralized the same
      * way: a Shift held across the taps must not turn the copy into Ctrl+Shift+C.
      */
     @Test
@@ -2531,7 +2474,7 @@ class MainGlobalKeyListenerTest {
     }
 
     /**
-     * 10. The hotkey path keeps its own contract: the trigger chord is what it waits for, and
+     * The hotkey path keeps its own contract: the trigger chord is what it waits for, and
      * the copy follows exactly as before.
      */
     @Test
