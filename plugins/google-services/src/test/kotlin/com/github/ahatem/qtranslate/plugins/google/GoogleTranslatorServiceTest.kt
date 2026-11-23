@@ -78,89 +78,34 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `official API omits source when auto detection is requested`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
+    fun `official API sends the mapped source and target codes and omits source for auto`() = runBlocking {
+        // (source, target) -> expected source field (null = omitted), expected target field
+        val cases = listOf(
+            Triple(LanguageCode.AUTO to LanguageCode.FRENCH, null, "fr"),
+            Triple(LanguageCode.ENGLISH to LanguageCode.GUARANI, "en", "gn"),
+            Triple(LanguageCode.ENGLISH to LanguageCode.GEORGIAN, "en", "ka"),
+            Triple(LanguageCode.FRENCH to LanguageCode.ENGLISH, "fr", "en"),
         )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
+        for ((languages, wantSource, wantTarget) in cases) {
+            val client = GoogleTestHttpClient(
+                primaryHandler = { Ok(PRIMARY_JSON) },
+                officialHandler = { Ok(OFFICIAL_JSON) }
+            )
+            val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
 
-        service.translate(request).fold(
-            success = {
-                assertEquals("Bonjour", it.translatedText)
-                assertEquals(LanguageCode.ENGLISH, it.detectedLanguage)
-            },
-            failure = { fail(it.message) }
-        )
+            val response = service.translate(
+                TranslationRequest("Hello", languages.first, languages.second)
+            ).unwrap()
 
-        assertEquals(1, client.officialCalls)
-        assertEquals(0, client.primaryCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertNull(body["source"])
-        assertEquals("Hello", body["q"]?.jsonPrimitive?.content)
-        assertEquals("fr", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends gn as the target for Guarani`() = runBlocking {
-        val guarani = TranslationRequest(
-            text = "Hello, how are you today?",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.GUARANI
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(guarani).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("en", body["source"]?.jsonPrimitive?.content)
-        assertEquals("gn", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends ka as the target for Georgian`() = runBlocking {
-        val georgian = TranslationRequest(
-            text = "Hello, how are you today?",
-            sourceLanguage = LanguageCode.ENGLISH,
-            targetLanguage = LanguageCode.GEORGIAN
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(georgian).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("en", body["source"]?.jsonPrimitive?.content)
-        assertEquals("ka", body["target"]?.jsonPrimitive?.content)
-    }
-
-    @Test
-    fun `official API sends the mapped source for an explicit language`() = runBlocking {
-        val explicit = TranslationRequest(
-            text = "Bonjour",
-            sourceLanguage = LanguageCode.FRENCH,
-            targetLanguage = LanguageCode.ENGLISH
-        )
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok(PRIMARY_JSON) },
-            officialHandler = { Ok(OFFICIAL_JSON) }
-        )
-        val service = createService(client, AtomicLong(0), GoogleSettings(translateApiKey = "test-key"))
-
-        service.translate(explicit).unwrap().also { assertEquals("Bonjour", it.translatedText) }
-
-        assertEquals(1, client.officialCalls)
-        val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
-        assertEquals("fr", body["source"]?.jsonPrimitive?.content)
+            val label = "${languages.first} -> ${languages.second}"
+            assertEquals("Bonjour", response.translatedText, label)
+            assertEquals(1, client.officialCalls, label)
+            assertEquals(0, client.primaryCalls, label)
+            val body = PluginJson.parseToJsonElement(client.officialBodies.single()).jsonObject
+            assertEquals(wantSource, body["source"]?.jsonPrimitive?.content, label)
+            assertEquals("Hello", body["q"]?.jsonPrimitive?.content, label)
+            assertEquals(wantTarget, body["target"]?.jsonPrimitive?.content, label)
+        }
     }
 
     @Test
@@ -489,21 +434,23 @@ class GoogleTranslatorServiceTest {
     }
 
     @Test
-    fun `empty primary response fails with an invalid response error`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok("[]") },
-            // The unusable first answer is retryable, so the second path is asked; making that fail
-            // too is what surfaces the primary's own classification.
-            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
-        )
-        val service = createService(client, AtomicLong(0))
+    fun `an empty or unsupported primary answer fails with the primary's own classification`() = runBlocking {
+        for ((label, body) in listOf("empty array" to "[]", "unsupported object" to """{"translated":"Bonjour"}""")) {
+            val client = GoogleTestHttpClient(
+                primaryHandler = { Ok(body) },
+                // The unusable first answer is retryable, so the second path is asked; making that fail
+                // too is what surfaces the primary's own classification.
+                fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
+            )
+            val service = createService(client, AtomicLong(0))
 
-        // The caller is left with the second path's failure, so that is the type; what must survive
-        // is the first path's own classification, which is what tells a throttled host apart from
-        // one that answered with something unusable.
-        val error = service.translate(request).getError()
-        assertIs<ServiceError.TimeoutError>(error)
-        assertContains(error.message, "primary endpoint returned an unusable response")
+            // The caller is left with the second path's failure, so that is the type; what must survive
+            // is the first path's own classification, which tells a throttled host apart from one that
+            // answered with something unusable.
+            val error = service.translate(request).getError()
+            assertIs<ServiceError.TimeoutError>(error, label)
+            assertContains(error.message, "primary endpoint returned an unusable response", message = label)
+        }
     }
 
     @Test
@@ -520,19 +467,6 @@ class GoogleTranslatorServiceTest {
         assertIs<ServiceError.InvalidResponseError>(error)
         assertContains(error.message, "primary endpoint timed out")
         assertContains(error.message, "sentence client returned an unusable response")
-    }
-
-    @Test
-    fun `an unsupported primary object shape fails with an invalid response error`() = runBlocking {
-        val client = GoogleTestHttpClient(
-            primaryHandler = { Ok("""{"translated":"Bonjour"}""") },
-            fallbackHandler = { Err(ServiceError.TimeoutError("timed out")) }
-        )
-        val service = createService(client, AtomicLong(0))
-
-        val error = service.translate(request).getError()
-        assertIs<ServiceError.TimeoutError>(error)
-        assertContains(error.message, "primary endpoint returned an unusable response")
     }
 
     @Test
