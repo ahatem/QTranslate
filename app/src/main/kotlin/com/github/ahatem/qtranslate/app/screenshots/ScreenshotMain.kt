@@ -269,6 +269,21 @@ private class Shots(
                 (field.get(dialog) as javax.swing.JTextArea).caretPosition = 5
             }
             write("ocr-result-$label", paintAfterLayout("ocr-result-$label", dialog.rootPane))
+            if (label == "light") {
+                val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
+                val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
+                lateinit var state: com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                onUi {
+                    state = stateField.get(dialog) as com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState
+                    render.invoke(dialog, state.copy(
+                        providers = emptyList(), providerId = null, languages = emptyList(),
+                        recognizedText = "", regions = emptyList(),
+                        error = com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceError.NoProvider,
+                    ))
+                }
+                write("ocr-no-provider-light", paintAfterLayout("ocr-no-provider-light", dialog.rootPane))
+                onUi { render.invoke(dialog, state) }
+            }
             if (label == "dark") {
                 val stateField = dialog.javaClass.getDeclaredField("lastOcrState").apply { isAccessible = true }
                 val render = dialog.javaClass.getDeclaredMethod("renderOcr", com.github.ahatem.qtranslate.core.ocr.workspace.OcrWorkspaceState::class.java).apply { isAccessible = true }
@@ -315,7 +330,28 @@ private class Shots(
             }
         }
         write("ocr-rtl", paintAfterLayout("ocr-rtl", rtlDialog.rootPane))
+        val rtlSample = BufferedImage(500, 180, BufferedImage.TYPE_INT_RGB)
+        rtlSample.createGraphics().apply {
+            color = java.awt.Color.WHITE; fillRect(0, 0, 500, 180)
+            color = java.awt.Color.DARK_GRAY; font = java.awt.Font("SansSerif", java.awt.Font.PLAIN, 26)
+            drawString("Welcome to QTranslate", 25, 60); drawString("Translate text from images", 25, 115); dispose()
+        }
+        val rtlBytes = java.io.ByteArrayOutputStream().apply { ImageIO.write(rtlSample, "png", this) }.toByteArray()
+        onUi {
+            rtlDialog.openImage(com.github.ahatem.qtranslate.api.ocr.ImageData(rtlBytes, "png", 500, 180), "Sample", false,
+                "Welcome to QTranslate\nTranslate text from images", listOf(
+                    com.github.ahatem.qtranslate.api.ocr.OCRTextRegion("Welcome to QTranslate", 20, 32, 310, 68),
+                    com.github.ahatem.qtranslate.api.ocr.OCRTextRegion("Translate text from images", 20, 87, 360, 122),
+                ))
+        }
+        delay(1000)
+        onUi {
+            val field = rtlDialog.javaClass.getDeclaredField("translationArea").apply { isAccessible = true }
+            (field.get(rtlDialog) as javax.swing.JTextArea).text = "مرحبًا بك في QTranslate\nترجمة النص من الصور"
+        }
+        write("ocr-rtl-result", paintAfterLayout("ocr-rtl-result", rtlDialog.rootPane))
         onUi { rtlDialog.dispose() }
+        deps.localizationManager.loadLanguage(LanguageCode("en"))
         start(Scenes.classic(Scenes.DARK).copy(uiScale = 100))
         capture("ocr-main")
         onUi {
