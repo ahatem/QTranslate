@@ -197,32 +197,25 @@ class AIServiceClientTest {
     }
 
     @Test
-    fun `a finish reason of length is a truncation error`() = runBlocking {
+    fun `a finish reason of length is a truncation error for text and vision`() = runBlocking<Unit> {
         val body = """{"choices":[{"message":{"role":"assistant","content":"partial"},"finish_reason":"length"}]}"""
-        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.InvalidResponseError>(failure)
-        assertTrue(failure.message.contains("truncated"), "message was: ${failure.message}")
-    }
-
-    @Test
-    fun `a vision finish reason of length is a truncation error`() = runBlocking {
-        val body = """{"choices":[{"message":{"role":"assistant","content":"partial"},"finish_reason":"length"}]}"""
-        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
-
-        val failure = failureOf(
-            client(httpClient).completeWithImage(
-                system = "s",
-                image = ImageData(byteArrayOf(1, 2, 3), "png", 1, 1),
-                userText = "read this",
-                profile = hostedProfile()
-            )
+        val calls = mapOf<String, suspend (AIServiceClient) -> Result<String, ServiceError>>(
+            "text" to { it.complete("s", "u", hostedProfile()) },
+            "vision" to {
+                it.completeWithImage(
+                    system = "s",
+                    image = ImageData(byteArrayOf(1, 2, 3), "png", 1, 1),
+                    userText = "read this",
+                    profile = hostedProfile()
+                )
+            },
         )
+        for ((label, call) in calls) {
+            val failure = failureOf(call(client(ScriptedHttpClient(listOf(Ok(body))))))
 
-        assertIs<ServiceError.InvalidResponseError>(failure)
-        assertTrue(failure.message.contains("truncated"), "message was: ${failure.message}")
+            assertIs<ServiceError.InvalidResponseError>(failure, label)
+            assertTrue(failure.message.contains("truncated"), "$label message was: ${failure.message}")
+        }
     }
 
     @Test
@@ -236,68 +229,30 @@ class AIServiceClientTest {
     }
 
     @Test
-    fun `a malformed non-JSON body is an invalid response error, not an exception`() = runBlocking<Unit> {
-        val httpClient = ScriptedHttpClient(listOf(Ok("not json")))
+    fun `an unusable body is an invalid response error, not an exception`() = runBlocking<Unit> {
+        for (body in listOf("not json", """{"choices":[]}""")) {
+            val failure = failureOf(client(ScriptedHttpClient(listOf(Ok(body)))).complete("s", "u", hostedProfile()))
 
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.InvalidResponseError>(failure)
+            assertIs<ServiceError.InvalidResponseError>(failure, "body: $body")
+        }
     }
 
     @Test
-    fun `an empty choices list is an invalid response error`() = runBlocking<Unit> {
-        val httpClient = ScriptedHttpClient(listOf(Ok("""{"choices":[]}""")))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.InvalidResponseError>(failure)
-    }
-
-    @Test
-    fun `a transport ServiceUnavailable error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.ServiceUnavailableError("transport says down"))))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.ServiceUnavailableError>(failure)
-        assertEquals("transport says down", failure.message)
-    }
-
-    @Test
-    fun `a transport RateLimit error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.RateLimitError("slow down"))))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.RateLimitError>(failure)
-        assertEquals("slow down", failure.message)
-    }
-
-    @Test
-    fun `a transport Authentication error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.AuthenticationError("HTTP 401"))))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertIs<ServiceError.AuthenticationError>(failure)
-        assertEquals("HTTP 401", failure.message)
-    }
-
-    @Test
-    fun `a transport 404 error passes through as-is without re-mapping`() = runBlocking {
-        // The transport owns the mapping of HTTP status to ServiceError; the
-        // client must not re-map it to ServiceUnavailable or add a synthetic
-        // body. Script what the transport would produce for a 404 and pin
-        // that it arrives verbatim.
-        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.UnknownError("HTTP 404 Not Found"))))
-
-        val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
-
-        assertTrue(
-            failure !is ServiceError.ServiceUnavailableError,
-            "a transport 404 must not be re-mapped to ServiceUnavailable"
+    fun `transport errors pass through untouched`() = runBlocking {
+        // The transport owns the mapping of HTTP status to ServiceError; the client must not re-map
+        // it. A 404 arrives as an UnknownError and must not become ServiceUnavailable.
+        val errors = listOf(
+            ServiceError.ServiceUnavailableError("transport says down"),
+            ServiceError.RateLimitError("slow down"),
+            ServiceError.AuthenticationError("HTTP 401"),
+            ServiceError.UnknownError("HTTP 404 Not Found"),
         )
-        assertEquals("HTTP 404 Not Found", failure.message)
+        for (error in errors) {
+            val failure = failureOf(client(ScriptedHttpClient(listOf(Err(error)))).complete("s", "u", hostedProfile()))
+
+            assertEquals(error::class, failure::class, "type for ${error.message}")
+            assertEquals(error.message, failure.message)
+        }
     }
 
     private companion object {
