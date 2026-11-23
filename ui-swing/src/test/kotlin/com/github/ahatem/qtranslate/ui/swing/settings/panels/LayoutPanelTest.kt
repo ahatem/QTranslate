@@ -102,17 +102,19 @@ class LayoutPanelTest {
 
     private fun named(root: Container, name: String): List<Component> = descendants(root).filter { it.name == name }
 
-    private class Fixture(val store: SettingsStore, val panel: LayoutPanel, val prompts: Prompts) {
+    private class Fixture(val store: SettingsStore, val panel: LayoutPanel, val prompts: Prompts, val services: IntArray) {
         val draft get() = store.state.value.workingConfiguration
         val layout get() = draft.windowLayout
     }
 
     private fun fixture(config: Configuration = Configuration.DEFAULT, prompts: Prompts = Prompts()): Fixture {
         val store = store(config)
+        val services = IntArray(1)
         val panel = onEdt {
-            LayoutPanel(store, localizer, prompts = prompts).also { it.render(store.state.value) }
+            LayoutPanel(store, localizer, onOpenServicesSettings = { services[0]++ }, prompts = prompts)
+                .also { it.render(store.state.value) }
         }
-        return Fixture(store, panel, prompts)
+        return Fixture(store, panel, prompts, services)
     }
 
     private fun Fixture.rerender() = onEdt { panel.render(store.state.value) }
@@ -167,6 +169,35 @@ class LayoutPanelTest {
         )
         f.rerender()
         assertTrue(f.selectedCards().isEmpty(), "a window that matches no starting point marks none")
+    }
+
+    @Test
+    fun `only the most specific starting point in effect is marked and named`() {
+        val f = fixture()
+        f.click("card:${WindowPreset.FOCUS}")
+        // Compact names a subset of Focus's values, so it is also in effect, but it is not the one to mark.
+        assertTrue(WindowPreset.COMPACT.applyTo(f.layout) == f.layout)
+        assertEquals(listOf(WindowPreset.FOCUS), f.selectedCards())
+        val caption = descendants(f.panel).filterIsInstance<javax.swing.JLabel>().map { it.text }
+            .single { it.startsWith("Current:") }
+        assertEquals("Current: " + localizer.getString("settings_window.layout_card_focus"), caption)
+
+    }
+
+    @Test
+    fun `choosing an unavailable comparison goes to Services and writes nothing`() {
+        val f = fixture()
+        val comparison = named(f.panel, "panes:${PaneLayout.COMPARISON}").single() as AbstractButton
+        assertEquals(localizer.getString("settings_window.layout_panes_comparison"), comparison.text)
+        assertTrue(comparison.toolTipText != null, "an unavailable comparison says why")
+
+        f.click("panes:${PaneLayout.COMPARISON}")
+        assertEquals(1, f.services[0], "the click routes to the Services page")
+        assertEquals(PaneLayout.STACKED, f.layout.panes, "the panes are not written")
+        assertTrue((named(f.panel, "panes:${PaneLayout.STACKED}").single() as AbstractButton).isSelected)
+
+        f.click(LayoutPanel.SETUP_LINK)
+        assertEquals(2, f.services[0], "the setup link goes to the same place")
     }
 
     @Test

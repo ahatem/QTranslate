@@ -55,7 +55,7 @@ class LayoutTexts(private val localizer: LocalizationManager) {
         LayoutDisabledReason.APPEARANCE_NEEDS_STRIP ->
             localizer.getString("settings_window.layout_appearance_needs_strip")
         LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE ->
-            localizer.getString("settings_window.layout_second_result_needs_type")
+            localizer.getString("settings_window.layout_second_result_needs_type", localizer.getString("settings_dialog_sidebar.behavior"), localizer.getString("settings_translation.extra_output_group"))
         LayoutDisabledReason.OWN_COLUMN_NEEDS_SIDE_BY_SIDE ->
             localizer.getString("settings_window.layout_second_result_needs_side_by_side")
         LayoutDisabledReason.COMPARISON_KEEPS_SECOND_RESULT_BELOW ->

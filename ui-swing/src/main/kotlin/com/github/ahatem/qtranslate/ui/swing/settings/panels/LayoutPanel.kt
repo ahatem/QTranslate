@@ -99,6 +99,14 @@ class LayoutPanel(
         onOpen = { block, invoker -> present(popupFor(block), invoker) },
     )
     private val hiddenList = stackedColumn()
+
+    /** Shown while Comparison cannot be built: the way to the Services page that fixes it. */
+    private val setupLink = JButton(localizationManager.getString("settings_window.layout_comparison_setup")).apply {
+        name = SETUP_LINK
+        putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_BORDERLESS)
+        toolTipText = localizationManager.getString("settings_window.layout_comparison_unavailable")
+        addActionListener { onOpenServicesSettings() }
+    }
     private val currentLabel = JLabel()
     private val profileList = stackedColumn()
     private val saveButton = JButton(localizationManager.getString("main_window_main_menu.region_save_profile"))
@@ -134,16 +142,16 @@ class LayoutPanel(
     private fun buildUI() {
         addSeparator(localizationManager.getString("settings_window.layout_group"))
         addRow(localizationManager.getString("settings_window.layout_row_panes"), panesControl())
-
-        addSeparator(localizationManager.getString("settings_window.layout_outline_group"))
-        addHint(localizationManager.getString("settings_window.layout_outline_hint"))
-        // The outline sits at the leading edge at its own width rather than stretching with the page.
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(
             JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
                 isOpaque = false
-                add(outline)
+                add(setupLink)
             }
         )
+
+        addSeparator(localizationManager.getString("settings_window.layout_outline_group"))
+        addHint(localizationManager.getString("settings_window.layout_outline_hint"))
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(outline)
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(hiddenList)
 
         addSeparator(localizationManager.getString("settings_window.layout_starting_points_group"))
@@ -155,7 +163,13 @@ class LayoutPanel(
         addSeparator(localizationManager.getString("main_window_main_menu.layout_saved_layouts"))
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(profileList)
         saveButton.addActionListener { if (!isUpdatingFromState) saveCurrent() }
-        gb.nextRow().add(saveButton)
+        // Spanning the row keeps the button from setting the width of the page's label column.
+        gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(
+            JPanel(FlowLayout(FlowLayout.LEADING, 0, 0)).apply {
+                isOpaque = false
+                add(saveButton)
+            }
+        )
         saveHint.font = SettingsVisuals.hintFont(saveHint.font)
         saveHint.foreground = SettingsVisuals.secondaryText()
         gb.nextRow().spanLine().weightX(1.0).fill(GridBagConstraints.HORIZONTAL).add(saveHint)
@@ -184,11 +198,7 @@ class LayoutPanel(
     }
 
     private fun paneTitle(pane: PaneLayout): String =
-        if (pane == PaneLayout.COMPARISON && !comparisonAvailable) {
-            localizationManager.getString("settings_window.layout_comparison_configure")
-        } else {
-            texts.pane(pane)
-        }
+        texts.pane(pane)
 
     private fun choosePanes(pane: PaneLayout) {
         if (pane == PaneLayout.COMPARISON && !comparisonAvailable) {
@@ -203,6 +213,7 @@ class LayoutPanel(
 
     /** Selects what the window builds, which is Stacked while a requested Comparison cannot be drawn. */
     private fun syncPanes() = withoutTrigger {
+        setupLink.isVisible = !comparisonAvailable
         paneButtons.forEach { (pane, button) ->
             button.text = paneTitle(pane)
             button.isSelected = pane == shownPanes
@@ -316,7 +327,7 @@ class LayoutPanel(
             }
         }
         if (secondResultType == ExtraOutputType.None) {
-            hiddenList.addRow(JLabel(localizationManager.getString("settings_window.layout_second_result_needs_type")).apply {
+            hiddenList.addRow(JLabel(texts.reason(com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE)).apply {
                 font = SettingsVisuals.hintFont(font)
                 foreground = SettingsVisuals.secondaryText()
                 border = BorderFactory.createEmptyBorder(UIScale.scale(6), 0, 0, 0)
@@ -384,7 +395,7 @@ class LayoutPanel(
         fun refresh(layout: WindowLayout) {
             title.text = titleText()
             hintText.text = changesText()
-            val applied = isApplied(layout)
+            val applied = appliedCard(layout) == preset
             isSelected = applied
             badge.text = if (applied) localizationManager.getString("settings_window.layout_card_current") else ""
             toolTipText = changesText()
@@ -412,8 +423,15 @@ class LayoutPanel(
         }
     }
 
+    /**
+     * The one starting point to mark: the most specific of those already in effect. Focus names more
+     * values than Compact, and the two whole recipes name them all, so they win in that order.
+     */
+    private fun appliedCard(layout: WindowLayout): WindowPreset? =
+        SPECIFICITY.firstOrNull { cards.getValue(it).isApplied(layout) }
+
     private fun currentName(layout: WindowLayout, profiles: List<LayoutProfile>): String {
-        val card = cards.values.firstOrNull { it.isApplied(layout) }?.titleText()
+        val card = appliedCard(layout)?.let { cards.getValue(it).titleText() }
         return card
             ?: profiles.profileMatching(layout)?.name
             ?: localizationManager.getString("settings_window.layout_current_custom")
@@ -570,6 +588,10 @@ class LayoutPanel(
         /** The width, before scaling, that a card's explanation is wrapped to. */
         const val HINT_MEASURE = 250
 
+        const val SETUP_LINK = "comparison_setup"
+        private val SPECIFICITY = listOf(
+            WindowPreset.MODERN_CLASSIC, WindowPreset.CLASSIC, WindowPreset.FOCUS, WindowPreset.COMPACT,
+        )
         const val STATUS_BAR_ITEM = "status_bar"
         const val PROFILE_CURRENT = "profile_current"
         const val APPLY = "profile_apply"
