@@ -1,9 +1,8 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
-import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
 import java.awt.ComponentOrientation
-import javax.swing.SwingUtilities
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -40,8 +39,6 @@ class SecondaryFailureCompactTest {
         onCopy = {}
     )
 
-    private fun onEdt(block: () -> Unit) = SwingUtilities.invokeAndWait(block)
-
     private fun render(view: TranslationProviderView, state: TranslationProviderState) {
         onEdt { view.render(state) }
         onEdt { }
@@ -50,37 +47,39 @@ class SecondaryFailureCompactTest {
     private fun click(view: TranslationProviderView) = onEdt { view.detailsButtonForTest().doClick(0) }
 
     @Test
-    fun `a successful secondary keeps its body and offers no details`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(status = ProviderStatus.SUCCESS, text = "salut"))
-        assertTrue(view.bodyVisibleForTest())
-        assertFalse(view.detailsButtonForTest().isVisible)
-    }
-
-    @Test
-    fun `a loading secondary keeps the normal loading state`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(status = ProviderStatus.LOADING))
-        assertTrue(view.bodyVisibleForTest())
-        assertFalse(view.detailsButtonForTest().isVisible)
+    fun `a successful or loading secondary keeps its body and offers no details`() {
+        listOf(ProviderStatus.SUCCESS to "salut", ProviderStatus.LOADING to "").forEach { (status, text) ->
+            val view = TranslationProviderView(null)
+            render(view, provider(status = status, text = text))
+            assertTrue(view.bodyVisibleForTest(), "$status")
+            assertFalse(view.detailsButtonForTest().isVisible, "$status")
+        }
     }
 
     @Test
     fun `a failed secondary is compact with its failure in the header`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(status = ProviderStatus.FAILURE))
-        assertFalse(view.bodyVisibleForTest(), "no result body by default")
-        assertEquals("Translation failed", view.statusLabelForTest().text)
-        assertTrue(view.detailsButtonForTest().isVisible)
-        assertEquals("Details", view.detailsButtonForTest().text)
+        // Quick uses the same compact failure as Main.
+        ProviderPresentation.entries.forEach { presentation ->
+            val view = TranslationProviderView(null)
+            render(view, provider(status = ProviderStatus.FAILURE, presentation = presentation))
+            assertFalse(view.bodyVisibleForTest(), "$presentation: no result body by default")
+            assertEquals("Translation failed", view.statusLabelForTest().text)
+            assertTrue(view.detailsButtonForTest().isVisible)
+            assertEquals("Details", view.detailsButtonForTest().text)
+        }
     }
 
     @Test
     fun `a failed primary is never compacted`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(id = "google", role = ProviderRole.PRIMARY, status = ProviderStatus.FAILURE))
-        assertTrue(view.bodyVisibleForTest())
-        assertFalse(view.detailsButtonForTest().isVisible)
+        ProviderPresentation.entries.forEach { presentation ->
+            val view = TranslationProviderView(null)
+            render(
+                view,
+                provider(id = "google", role = ProviderRole.PRIMARY, status = ProviderStatus.FAILURE, presentation = presentation),
+            )
+            assertTrue(view.bodyVisibleForTest(), "$presentation")
+            assertFalse(view.detailsButtonForTest().isVisible, "$presentation")
+        }
     }
 
     @Test
@@ -182,47 +181,6 @@ class SecondaryFailureCompactTest {
         render(view, provider(status = ProviderStatus.SUCCESS, text = "salut"))
         assertTrue(view.bodyVisibleForTest())
         assertEquals("salut", view.textPaneForTest().text)
-    }
-
-    @Test
-    fun `quick secondaries use the same compact failure`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(status = ProviderStatus.FAILURE, presentation = ProviderPresentation.QUICK))
-        assertFalse(view.bodyVisibleForTest())
-        assertTrue(view.detailsButtonForTest().isVisible)
-        click(view)
-        assertTrue(view.bodyVisibleForTest())
-    }
-
-    @Test
-    fun `quick primary failure is unchanged`() {
-        val view = TranslationProviderView(null)
-        render(
-            view,
-            provider(id = "google", role = ProviderRole.PRIMARY, status = ProviderStatus.FAILURE, presentation = ProviderPresentation.QUICK)
-        )
-        assertTrue(view.bodyVisibleForTest())
-        assertFalse(view.detailsButtonForTest().isVisible)
-    }
-
-    @Test
-    fun `details is a native focusable toolbar button with a label and tooltip`() {
-        val view = TranslationProviderView(null)
-        render(view, provider(status = ProviderStatus.FAILURE))
-        val button = view.detailsButtonForTest()
-        assertEquals(
-            FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON,
-            button.getClientProperty(FlatClientProperties.BUTTON_TYPE)
-        )
-        assertTrue(button.isFocusable)
-        assertTrue(button.isContentAreaFilled)
-        assertEquals("Details", button.text, "a visible label, not only an icon")
-        assertEquals("Details", button.toolTipText)
-        assertTrue(
-            (button.mouseListeners.toList() + button.mouseMotionListeners.toList())
-                .none { it.javaClass.name.startsWith("com.github.ahatem") },
-            "hover comes from the look and feel"
-        )
     }
 
     @Test

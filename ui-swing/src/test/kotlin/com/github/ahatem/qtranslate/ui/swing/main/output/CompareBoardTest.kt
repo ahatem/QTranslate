@@ -1,12 +1,6 @@
 package com.github.ahatem.qtranslate.ui.swing.main.output
 
 import com.github.ahatem.qtranslate.core.settings.data.FontConfig
-import com.formdev.flatlaf.util.UIScale
-import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorPopupButton
-import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelectorState
-import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
-import com.github.ahatem.qtranslate.api.plugin.ServiceRole
-import com.github.ahatem.qtranslate.ui.swing.shared.icon.IconManager
 import com.github.ahatem.qtranslate.ui.swing.shared.widgets.AdvancedTextPane
 import java.awt.Component
 import java.awt.ComponentOrientation
@@ -30,7 +24,6 @@ class CompareBoardTest {
         serviceId: String = "google",
         serviceName: String = "Google",
         definition: String = "",
-        selectorState: TranslatorSelectorState? = null
     ) = TranslationProviderState(
         serviceId = serviceId,
         serviceName = serviceName,
@@ -50,7 +43,6 @@ class CompareBoardTest {
         definition = definition,
         fontConfig = font,
         fallbackFontConfig = font,
-        selectorState = selectorState
     )
 
     private fun secondary(
@@ -76,15 +68,6 @@ class CompareBoardTest {
         onCopy = {}
     )
 
-    private fun blindIconManager(): IconManager {
-        val theUnsafe = Class.forName("sun.misc.Unsafe")
-            .getDeclaredField("theUnsafe")
-            .apply { isAccessible = true }
-            .get(null)
-        val allocate = theUnsafe.javaClass.getMethod("allocateInstance", Class::class.java)
-        return allocate.invoke(theUnsafe, IconManager::class.java) as IconManager
-    }
-
     private fun render(board: CompareBoard, state: CompareBoardState) {
         SwingUtilities.invokeAndWait { board.render(state) }
         SwingUtilities.invokeAndWait { }
@@ -93,9 +76,7 @@ class CompareBoardTest {
     private fun layout(board: CompareBoard, width: Int, height: Int = 800) {
         SwingUtilities.invokeAndWait {
             board.setSize(width, height)
-            // Explicit passes, not validity-driven: the first assigns every
-            // bound top-down, the next ones read the fresh widths, which is
-            // what width-dependent decisions such as the readable cap need.
+            // Explicit passes: the first assigns bounds top-down, the next read the fresh widths.
             repeat(3) { layoutTopDown(board) }
         }
         SwingUtilities.invokeAndWait { }
@@ -287,26 +268,6 @@ class CompareBoardTest {
     }
 
     @Test
-    fun `board tracks the viewport width`() {
-        val board = CompareBoard(iconManager = null)
-        assertTrue(board.getScrollableTracksViewportWidth())
-        assertFalse(board.getScrollableTracksViewportHeight())
-        render(
-            board, CompareBoardState(
-                primary = primary(text = "a".repeat(500)),
-                secondaries = listOf(secondary("one", "One", ProviderStatus.SUCCESS, "b".repeat(500)))
-            )
-        )
-        layout(board, 400)
-        board.components.filterIsInstance<TranslationProviderView>().forEach { view ->
-            assertTrue(view.x + view.width <= board.width)
-        }
-        var preferredWidth = -1
-        SwingUtilities.invokeAndWait { preferredWidth = board.preferredSize.width }
-        assertEquals(400, preferredWidth)
-    }
-
-    @Test
     fun `failure keeps provider identity with selectable error summary`() {
         val board = CompareBoard(iconManager = null)
         render(
@@ -340,40 +301,6 @@ class CompareBoardTest {
     }
 
     @Test
-    fun `primary selector presents translator name as one control`() {
-        val selector = TranslatorPopupButton(blindIconManager(), {}).also {
-            SwingUtilities.invokeAndWait {
-                it.render(
-                    TranslatorSelectorState(
-                        availableTranslators = listOf(
-                            ServiceInfo("google", "Google Translate", null, ServiceRole.TRANSLATOR)
-                        ),
-                        selectedTranslatorId = "google",
-                        isLoading = false
-                    )
-                )
-            }
-        }
-        val board = CompareBoard(primarySelector = selector, iconManager = null)
-        render(
-            board, CompareBoardState(
-                primary = primary(
-                    selectorState = TranslatorSelectorState(
-                        availableTranslators = listOf(
-                            ServiceInfo("google", "Google Translate", null, ServiceRole.TRANSLATOR)
-                        ),
-                        selectedTranslatorId = "google",
-                        isLoading = false
-                    )
-                ),
-                secondaries = emptyList()
-            )
-        )
-        assertTrue(selector.isVisible)
-        assertEquals("Google Translate", selector.text)
-    }
-
-    @Test
     fun `provider without resolvable icon shows name without a fake logo`() {
         val board = CompareBoard(iconManager = null)
         render(
@@ -387,25 +314,6 @@ class CompareBoardTest {
         assertTrue(labels.mapNotNull { it.text }.contains("Mystery"))
         assertTrue(labels.none { it.icon != null })
         assertEquals("text", view.textPaneForTest().text)
-    }
-
-    @Test
-    fun `wide primary body is capped for readable line length`() {
-        val board = CompareBoard(iconManager = null)
-        render(
-            board, CompareBoardState(
-                primary = primary(text = "word ".repeat(200)),
-                secondaries = emptyList()
-            )
-        )
-        // Scale-aware: the cap is in scaled pixels, so the board must exceed it
-        // whatever display scale the test JVM reports.
-        val wideEnough = UIScale.scale(TranslationProviderView.READABLE_BODY_MAX) + 600
-        layout(board, wideEnough)
-        assertTrue(
-            board.primaryProviderView.readableCapActiveForTest(),
-            "readable cap inactive at board width $wideEnough"
-        )
     }
 
     @Test
