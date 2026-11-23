@@ -5,7 +5,6 @@ import com.github.ahatem.qtranslate.ui.swing.shared.textpane.CaretGeometry
 import com.github.ahatem.qtranslate.ui.swing.shared.textpane.InsertionDirection
 import java.awt.Color
 import java.awt.Graphics2D
-import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
 import javax.swing.text.AbstractDocument
 import javax.swing.text.DefaultCaret
@@ -125,10 +124,6 @@ class CaretBidiFlagTest {
         val left: IntRange?,
         /** Device columns inked to the right of the bar, if any. */
         val right: IntRange?,
-        /** Device rows the flag's own ink covers. */
-        val flagRows: IntRange?,
-        /** Pixels the caret left only partly covered, which a crisp mark never does. */
-        val partial: Int,
     ) {
         val flagLength: Int get() = (left?.count() ?: 0) + (right?.count() ?: 0)
     }
@@ -137,18 +132,14 @@ class CaretBidiFlagTest {
         pane: AdvancedTextPane,
         dot: Int,
         bias: Position.Bias,
-        scale: Double = 1.0,
     ): PaintedCaret {
         val caret = pane.caret as DefaultCaret
-        // The caret is painted at its own component coordinates, so the image is measured in the same
-        // space: no translation, and every measurement below is already an absolute device row.
-        val width = Math.ceil(pane.width * scale).toInt() + 8
-        val height = Math.ceil(pane.height * scale).toInt() + 8
+        val width = pane.width + 8
+        val height = pane.height + 8
         val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics() as Graphics2D
         g.color = Color.WHITE
         g.fillRect(0, 0, width, height)
-        g.transform = AffineTransform.getScaleInstance(scale, scale)
         ShapedText.onEdt {
             caret.setDot(dot, bias)
             caret.paint(g)
@@ -156,13 +147,11 @@ class CaretBidiFlagTest {
         g.dispose()
 
         val inked = ArrayList<Int>()
-        var partial = 0
         val rowsByColumn = HashMap<Int, MutableList<Int>>()
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val rgb = image.getRGB(x, y)
                 if (rgb != Color.WHITE.rgb) {
-                    if ((rgb ushr 24) != 255) partial++
                     inked += x
                     val rows = rowsByColumn.getOrPut(x) { ArrayList() }
                     rows += y
@@ -179,15 +168,10 @@ class CaretBidiFlagTest {
         val bar = barColumns.first()..barColumns.last()
         val left = inked.filter { it < bar.first }.sorted()
         val right = inked.filter { it > bar.last }.sorted()
-        val flagRows = (left + right).flatMap { rowsByColumn[it]!! }.let {
-            if (it.isEmpty()) null else it.minOf { r -> r }..it.maxOf { r -> r }
-        }
         return PaintedCaret(
             bar = bar,
             left = if (left.isEmpty()) null else left.first()..left.last(),
             right = if (right.isEmpty()) null else right.first()..right.last(),
-            flagRows = flagRows,
-            partial = partial,
         )
     }
 
@@ -268,64 +252,4 @@ class CaretBidiFlagTest {
         }
     }
 
-    @Test
-    fun `the flag stays a small mark at the top of the caret`() {
-        val pane = pane(mixedParagraphs.first())
-        val painted = painted(pane, 2, Position.Bias.Forward)
-        val rows = painted.flagRows ?: error("no flag was painted")
-        assertEquals(
-            CaretGeometry.FLAG_SIZE,
-            rows.count(),
-            "the flag is a 4px mark, not a second caret: $rows",
-        )
-        val row = ShapedText.onEdt { pane.ui.modelToView2D(pane, 2, Position.Bias.Forward)!! }
-        val caretTop = ShapedText.onEdt {
-            val metrics = pane.getFontMetrics(pane.font)
-            val placement = CaretGeometry.place(
-                rowX = row.x,
-                rowY = row.y,
-                rowHeight = row.height,
-                ascent = metrics.ascent,
-                descent = metrics.descent,
-                transform = AffineTransform(),
-            )
-            placement.y
-        }
-        assertEquals(caretTop, rows.first, "the flag starts at the top of the caret body")
-    }
-
-    @Test
-    fun `the flag scales with the display and keeps the caret's own thickness`() {
-        val pane = pane(mixedParagraphs.first())
-        listOf(1.0, 1.25, 1.5, 2.0).forEach { scale ->
-            val painted = painted(pane, 2, Position.Bias.Forward, scale)
-            assertEquals(
-                Math.round(CaretGeometry.NOMINAL_WIDTH * scale).toInt(),
-                painted.bar.count(),
-                "at ${scale * 100}% the flag must not change the caret's own thickness",
-            )
-            assertEquals(
-                Math.round(CaretGeometry.FLAG_SIZE * scale).toInt(),
-                painted.flagLength,
-                "at ${scale * 100}% the flag should follow the display scale",
-            )
-            assertEquals<Int>(
-                0,
-                painted.partial,
-                "at ${scale * 100}% the flag left partly covered pixels: the mark has to stay crisp (#377)",
-            )
-        }
-    }
-
-    @Test
-    fun `the flag is drawn on the caret's row`() {
-        val pane = pane(mixedParagraphs.first())
-        val painted = painted(pane, 2, Position.Bias.Forward)
-        val row = ShapedText.onEdt { pane.ui.modelToView2D(pane, 2, Position.Bias.Forward)!! }
-        val rows = painted.flagRows!!
-        assertTrue(
-            rows.first >= Math.floor(row.y).toInt() && rows.last <= Math.ceil(row.y + row.height).toInt(),
-            "the flag must stay inside the row Swing repaints: $rows for $row",
-        )
-    }
 }

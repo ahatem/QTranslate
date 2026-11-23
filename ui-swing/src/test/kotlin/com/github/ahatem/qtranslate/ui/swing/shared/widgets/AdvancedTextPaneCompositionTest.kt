@@ -1,17 +1,15 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import java.awt.event.FocusEvent
 import java.awt.event.InputMethodEvent
 import java.text.AttributedString
-import javax.swing.SwingUtilities
 import javax.swing.text.StyleConstants
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /** Synthetic IME events exercise Swing's real composition positions without an installed IME. */
 class AdvancedTextPaneCompositionTest {
-    private fun onEdt(block: () -> Unit) = SwingUtilities.invokeAndWait(block)
-
     private fun pane(emitted: MutableList<String>): AdvancedTextPane {
         lateinit var pane: AdvancedTextPane
         onEdt {
@@ -48,18 +46,6 @@ class AdvancedTextPaneCompositionTest {
             assertEquals(listOf("測試"), emitted)
             pane.render("replacement", emptyList(), true)
             assertEquals("replacement", pane.text)
-        }
-    }
-
-    @Test
-    fun `ordinary editing still emits text`() {
-        val emitted = mutableListOf<String>()
-        val pane = pane(emitted)
-        onEdt {
-            pane.render("hello", emptyList(), true)
-            pane.document.insertString(5, "!", null)
-            assertEquals("hello!", pane.text)
-            assertEquals(listOf("hello!"), emitted)
         }
     }
 

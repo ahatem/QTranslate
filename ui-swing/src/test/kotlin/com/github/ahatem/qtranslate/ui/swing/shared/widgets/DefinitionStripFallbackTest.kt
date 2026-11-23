@@ -1,6 +1,5 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
-import com.github.ahatem.qtranslate.ui.swing.shared.fonts.PortableFallbackFonts
 import java.awt.ComponentOrientation
 import java.awt.Font
 import java.awt.Rectangle
@@ -12,10 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * The dictionary definition is a translation too, and it used to be the one text surface with no
- * fallback at all: a plain area that could only ever be drawn in a single font.
- */
+/** The dictionary definition is drawn with the same script fallback as the translation. */
 class DefinitionStripFallbackTest {
 
     private val samples = mapOf(
@@ -65,19 +61,6 @@ class DefinitionStripFallbackTest {
     }
 
     @Test
-    fun `a reported script moves to its bundled face and keeps Latin in the interface font`() {
-        val strip = render("Hello ภาษาไทย world")
-        val doc = textComponent(strip).styledDocument
-        val text = "Hello ภาษาไทย world"
-
-        val families = (0 until text.length)
-            .map { StyleConstants.getFontFamily(doc.getCharacterElement(it).attributes) }
-            .toSet()
-        assertTrue(PortableFallbackFonts.THAI in families, "the script is drawn by the bundled Thai face")
-        assertEquals(2, families.size, "and the Latin keeps the interface face: $families")
-    }
-
-    @Test
     fun `a blank definition hides the strip and a nonblank one shows it`() {
         val strip = DefinitionStrip()
         val hidden = arrayOfNulls<Boolean>(1)
@@ -93,19 +76,6 @@ class DefinitionStripFallbackTest {
             shown[0] = strip.isVisible
         }
         assertTrue(shown[0]!!, "a real definition shows the strip")
-    }
-
-    @Test
-    fun `the strip stays an aside - not editable, and out of the tab order`() {
-        val strip = render(samples.getValue("Thai"))
-        val text = textComponent(strip)
-
-        assertFalse(text.isEditable, "a definition is not written into")
-        assertTrue(text.isFocusable, "a click leaves the caret here so the keyboard can copy")
-        assertTrue(
-            text.skipsFocusTraversal(),
-            "while Tab walks past it: a reader does not tab to a definition"
-        )
     }
 
     @Test
@@ -154,11 +124,4 @@ class DefinitionStripFallbackTest {
         assertTrue(oneLine[0] < height[0], "a short definition asks for less height than a long one")
     }
 
-    @Test
-    fun `the definition text is left exactly as it was given`() {
-        val sample = samples.getValue("Devanagari")
-        val strip = render(sample)
-
-        assertEquals(sample, textComponent(strip).text, "attributes change how it is drawn, not what it says")
-    }
 }

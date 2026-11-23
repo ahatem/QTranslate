@@ -9,15 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/**
- * Dragging is clamped on the usable virtual desktop.
- *
- * A display left of or above the primary one has negative coordinates. Clamping from zero is
- * what pulled the Quick Translate popup back to the primary display when it was dragged on any
- * other screen (issue #412). These cases pin the desktop origin, the union used for multi-monitor
- * arrangements, the OS-reserved screen insets, and the existing edge-inset and oversized-window
- * behaviour.
- */
+/** Dragging is clamped on the usable virtual desktop, which has negative coordinates on multi-monitor setups. */
 class ComponentMoverGeometryTest {
 
     private val primary = Rectangle(0, 0, 1920, 1080)
@@ -44,50 +36,40 @@ class ComponentMoverGeometryTest {
     }
 
     @Test
-    fun `a display left of primary is a valid negative x coordinate space`() {
-        val screens = listOf(primary, leftOfPrimary)
-
-        assertEquals(Rectangle(-1920, 0, 3840, 1080), virtualDesktopBounds(screens))
-        assertEquals(
-            Point(-1500, 200),
-            clamp(-1500, 200, screens),
-            "the popup must not snap from a negative monitor to x=0",
+    fun `a display beside or above or below primary extends the desktop instead of snapping to zero`() {
+        class Case(
+            val name: String,
+            val other: Rectangle,
+            val desktop: Rectangle,
+            val moves: List<Triple<Int, Int, Point>>,
         )
-        assertEquals(Point(-1920, 200), clamp(-5000, 200, screens))
-        assertEquals(Point(1120, 200), clamp(5000, 200, screens))
-    }
 
-    @Test
-    fun `a display right of primary is a valid positive x coordinate space`() {
-        val screens = listOf(primary, rightOfPrimary)
-
-        assertEquals(Rectangle(0, 0, 3840, 1080), virtualDesktopBounds(screens))
-        assertEquals(Point(2500, 200), clamp(2500, 200, screens))
-        assertEquals(Point(3040, 200), clamp(5000, 200, screens))
-        assertEquals(Point(0, 200), clamp(-5000, 200, screens))
-    }
-
-    @Test
-    fun `a display above primary is a valid negative y coordinate space`() {
-        val screens = listOf(primary, abovePrimary)
-
-        assertEquals(Rectangle(0, -1080, 1920, 2160), virtualDesktopBounds(screens))
-        assertEquals(
-            Point(100, -900),
-            clamp(100, -900, screens),
-            "the popup must not snap from an upper monitor to y=0",
+        val cases = listOf(
+            // The popup used to snap from a negative monitor back to x=0 (issue #412).
+            Case(
+                "left", leftOfPrimary, Rectangle(-1920, 0, 3840, 1080),
+                listOf(Triple(-1500, 200, Point(-1500, 200)), Triple(-5000, 200, Point(-1920, 200)), Triple(5000, 200, Point(1120, 200)))
+            ),
+            Case(
+                "right", rightOfPrimary, Rectangle(0, 0, 3840, 1080),
+                listOf(Triple(2500, 200, Point(2500, 200)), Triple(5000, 200, Point(3040, 200)), Triple(-5000, 200, Point(0, 200)))
+            ),
+            Case(
+                "above", abovePrimary, Rectangle(0, -1080, 1920, 2160),
+                listOf(Triple(100, -900, Point(100, -900)), Triple(100, -5000, Point(100, -1080)), Triple(100, 5000, Point(100, 480)))
+            ),
+            Case(
+                "below", belowPrimary, Rectangle(0, 0, 1920, 2160),
+                listOf(Triple(100, 1500, Point(100, 1500)), Triple(100, 5000, Point(100, 1560)))
+            ),
         )
-        assertEquals(Point(100, -1080), clamp(100, -5000, screens))
-        assertEquals(Point(100, 480), clamp(100, 5000, screens))
-    }
-
-    @Test
-    fun `a display below primary extends the positive y coordinate space`() {
-        val screens = listOf(primary, belowPrimary)
-
-        assertEquals(Rectangle(0, 0, 1920, 2160), virtualDesktopBounds(screens))
-        assertEquals(Point(100, 1500), clamp(100, 1500, screens))
-        assertEquals(Point(100, 1560), clamp(100, 5000, screens))
+        for (case in cases) {
+            val screens = listOf(primary, case.other)
+            assertEquals(case.desktop, virtualDesktopBounds(screens), "${case.name}: desktop bounds")
+            for ((x, y, expected) in case.moves) {
+                assertEquals(expected, clamp(x, y, screens), "${case.name}: moving to ($x, $y)")
+            }
+        }
     }
 
     @Test

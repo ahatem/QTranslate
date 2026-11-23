@@ -14,27 +14,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Text has to be drawn with the same metrics it was laid out with.
- *
- * The text UI lays a row out through the component's own `FontMetrics`, which uses integer advances.
- * A component that turns `FRACTIONALMETRICS` on only while painting makes the glyphs advance by
- * fractional amounts instead. The two policies disagree by a fraction of a pixel per glyph, and the
- * difference accumulates along a line, so the drawn text ends up past the measured span and past the
- * edge of the pane (#373).
- *
- * The same disagreement is visible two other ways, and both were reported together (#359): a selection
- * is painted as separate draws for the selected and unselected parts, each starting at the advance the
- * layout reported, so text after the selection jumps when the selection appears; and the caret, whose
- * position comes from the layout, no longer sits on the character boundary that was painted.
- *
- * The invariants asserted here are behavioural: how far the painted ink reaches past the start of its
- * row has to stay within a small constant of the span the layout reported for that row; selecting a
- * range must not move a painted pixel; and the caret has to stand on the boundary the glyphs were
- * painted at. Nothing here asserts which rendering hints the component sets.
- *
- * The face is the logical `Serif` family rather than a named font file, because a named face such as
- * Times New Roman is not present on every CI machine and this has to run everywhere. The real glyph
- * advances therefore differ per platform, which is what the allowance covers.
+ * Text has to be drawn with the metrics it was laid out with (#373, #359): painted ink stays within a
+ * small constant of the laid-out span, selecting does not move text, and the caret stands on the
+ * painted boundary. Uses the logical `Serif` family so it runs on any CI machine.
  */
 class TextPaintLayoutAgreementTest {
 
@@ -73,21 +55,8 @@ class TextPaintLayoutAgreementTest {
             )
             pane.setSize(width, 300)
         }
-        awaitFontRuns(pane)
+        ShapedText.awaitFontRuns(pane)
         return pane
-    }
-
-    /** The font-fallback pass rewrites runs on a timer; wait until it has stopped, as the harness does. */
-    private fun awaitFontRuns(pane: AdvancedTextPane, timeoutMs: Long = 5000) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        var last: String? = null
-        var stable = 0
-        while (System.currentTimeMillis() < deadline && stable < 5) {
-            Thread.sleep(20)
-            val runs = ShapedText.onEdt { ShapedText.runs(pane).joinToString() }
-            stable = if (runs == last) stable + 1 else 0
-            last = runs
-        }
     }
 
     /** Paints the pane the way the app does, so the text UI answers geometry at all. */
@@ -135,7 +104,8 @@ class TextPaintLayoutAgreementTest {
         return right
     }
 
-    private fun assertRowsAgree(pane: AdvancedTextPane, image: BufferedImage, label: String) {
+    private fun assertRowsAgree(painted: Pair<AdvancedTextPane, BufferedImage>, label: String) {
+        val (pane, image) = painted
         val n = pane.document.length
         val starts = rowStarts(pane)
 
@@ -189,32 +159,21 @@ class TextPaintLayoutAgreementTest {
     }
 
     @Test
-    fun `painted text agrees with the layout that positioned it`() {
-        val pane = pane(english, size = 15, width = 280, fallback = "Serif")
-        assertRowsAgree(pane, painted(pane), "serif 15")
-    }
+    fun `painted text agrees with the layout, at two sizes and on a row that mixes two faces`() {
+        assertRowsAgree(pane(english, size = 15, width = 280, fallback = "Serif").let { it to painted(it) }, "serif 15")
+        assertRowsAgree(pane(english, size = 19, width = 320, fallback = "Serif").let { it to painted(it) }, "serif 19")
 
-    @Test
-    fun `painted text agrees with the layout at a larger size`() {
-        val pane = pane(english, size = 19, width = 320, fallback = "Serif")
-        assertRowsAgree(pane, painted(pane), "serif 19")
-    }
-
-    @Test
-    fun `painted text agrees with the layout on a row that mixes two faces`() {
         NotoNaskhArabicFont.install()
-        // The Arabic fallback cannot draw Thai, so the script has to land in the bundled face. If that
-        // stops happening this test would quietly stop covering a two-faced row.
-        val pane = pane(fallbackRow, size = 15, width = 300, fallback = NotoNaskhArabicFont.FAMILY)
-
-        val doc = ShapedText.onEdt { pane.styledDocument }
+        // The Arabic fallback cannot draw Thai, so the script lands in the bundled face; if that stops
+        // happening this case would quietly stop covering a two-faced row.
+        val mixed = pane(fallbackRow, size = 15, width = 300, fallback = NotoNaskhArabicFont.FAMILY)
+        val doc = ShapedText.onEdt { mixed.styledDocument }
         val families = (0 until doc.length)
             .map { StyleConstants.getFontFamily(doc.getCharacterElement(it).attributes) }
             .toSet()
         assertEquals(2, families.size, "one face for the Latin and one for the script: $families")
         assertTrue(PortableFallbackFonts.THAI in families, "the bundled Thai face draws the script")
-
-        assertRowsAgree(pane, painted(pane), "serif 15 with a Thai run")
+        assertRowsAgree(mixed to painted(mixed), "serif 15 with a Thai run")
     }
 
     /** The pane painted the way the application paints it, with a range selected. */

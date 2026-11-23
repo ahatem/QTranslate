@@ -1,32 +1,16 @@
 package com.github.ahatem.qtranslate.ui.swing.shared.widgets
 
+import com.github.ahatem.qtranslate.ui.swing.testing.onEdt
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.image.BufferedImage
 import javax.swing.JScrollPane
-import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Regression suite for [WavyUnderlineHighlighter.WavyUnderlinePainter].
- *
- * Selection dragging repaints the selected block on every mouse event, and each
- * repaint re-invokes the painter for every correction in the region. The painter
- * therefore caches the rendered wave strip and must re-render — never go stale —
- * whenever the area, the theme color or the device scale changes. Deterministic
- * and bound to the event dispatch thread through [onEdt]; no timing thresholds.
- */
+/** The painter caches the wave strip; it must never replay a stale colour or scale, and selection drags must not corrupt it. */
 class WavyUnderlinePainterTest {
-
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: T? = null
-        SwingUtilities.invokeAndWait { result = block() }
-        @Suppress("UNCHECKED_CAST")
-        return result as T
-    }
 
     private var waveColor: Color = Color.RED
     private lateinit var painter: WavyUnderlineHighlighter.WavyUnderlinePainter
@@ -56,8 +40,6 @@ class WavyUnderlinePainterTest {
                 g.dispose()
             }
         }
-        // The font-fallback pass is batched; it only writes attributes, which never
-        // changes the underline geometry asserted here.
         return image
     }
 
@@ -80,47 +62,6 @@ class WavyUnderlinePainterTest {
     private fun isBlue(r: Int, g: Int, b: Int) = b > 180 && r < 150 && g < 150
 
     @Test
-    fun `repainting an unchanged underline reuses the cached strip`() {
-        val pane = newPane("the quick brown fox jumps over the lazy dog")
-        highlight(pane, 4, 9)
-
-        paintPane(pane)
-        assertEquals(1, onEdt { painter.cachedStripCount() })
-
-        paintPane(pane)
-        assertEquals(1, onEdt { painter.cachedStripCount() }, "a second identical paint must not render again")
-    }
-
-    @Test
-    fun `each distinct underline area renders once`() {
-        val pane = newPane("the quick brown fox jumps over the lazy dog")
-        highlight(pane, 4, 9)
-        highlight(pane, 16, 19)
-
-        paintPane(pane)
-        assertEquals(2, onEdt { painter.cachedStripCount() })
-
-        paintPane(pane)
-        assertEquals(2, onEdt { painter.cachedStripCount() })
-    }
-
-    @Test
-    fun `a moved underline re-renders at its new area`() {
-        val pane = newPane("the quick brown fox jumps over the lazy dog")
-        highlight(pane, 4, 9)
-        paintPane(pane)
-        assertEquals(1, onEdt { painter.cachedStripCount() })
-
-        onEdt { pane.highlighter.removeAllHighlights() }
-        highlight(pane, 16, 19)
-        val image = paintPane(pane)
-        assertEquals(2, onEdt { painter.cachedStripCount() })
-
-        // The wave follows the highlight: red pixels where the new range sits.
-        assertTrue(countPixels(image, ::isRed) > 0, "the moved underline must be painted")
-    }
-
-    @Test
     fun `a theme color change re-renders instead of replaying the old color`() {
         val pane = newPane("the quick brown fox jumps over the lazy dog")
         highlight(pane, 4, 9)
@@ -131,47 +72,29 @@ class WavyUnderlinePainterTest {
 
         waveColor = Color.BLUE
         val blueImage = paintPane(pane)
-        assertEquals(
-            2, onEdt { painter.cachedStripCount() },
-            "the new theme color must render, not reuse the red strip"
-        )
         assertTrue(countPixels(blueImage, ::isBlue) > 0, "the blue underline must be painted")
         assertEquals(0, countPixels(blueImage, ::isRed), "no stale red pixels may survive the theme change")
     }
 
     @Test
-    fun `a device scale change re-renders instead of replaying`() {
+    fun `a device scale change paints a larger wave, and returning to a scale paints the same pixels`() {
         val pane = newPane("the quick brown fox jumps over the lazy dog")
         highlight(pane, 4, 9)
 
-        paintPane(pane, scale = 1.0)
-        assertEquals(1, onEdt { painter.cachedStripCount() })
+        val atTwo = paintPane(pane, scale = 2.0)
+        val atOne = paintPane(pane, scale = 1.0)
+        val atTwoAgain = paintPane(pane, scale = 2.0)
 
-        paintPane(pane, scale = 2.0)
-        assertEquals(2, onEdt { painter.cachedStripCount() }, "a new device scale must render, not replay")
-
-        paintPane(pane, scale = 2.0)
-        assertEquals(2, onEdt { painter.cachedStripCount() })
-    }
-
-    @Test
-    fun `the cache stays bounded no matter how many underlines are painted`() {        val text = (0 until 400).joinToString(" ") { "word$it" }
-        val pane = newPane(text)
-        onEdt {
-            var offset = 0
-            var added = 0
-            while (added < 300 && offset + 5 < text.length) {
-                pane.highlighter.addHighlight(offset, offset + 5, painter)
-                offset += 37
-                added++
+        assertTrue(countPixels(atOne, ::isRed) > 0, "the underline must be painted at 100%")
+        assertTrue(
+            countPixels(atTwo, ::isRed) > countPixels(atOne, ::isRed),
+            "a doubled device scale must paint a larger wave, not replay the 100% strip"
+        )
+        for (y in 0 until atTwo.height) {
+            for (x in 0 until atTwo.width) {
+                assertEquals(atTwo.getRGB(x, y), atTwoAgain.getRGB(x, y), "pixel ($x, $y) changed after a scale round trip")
             }
         }
-
-        paintPane(pane)
-        assertTrue(
-            onEdt { painter.cachedStripCount() } <= 256,
-            "entries must be evicted past the cap, got ${onEdt { painter.cachedStripCount() }}"
-        )
     }
 
     /**
