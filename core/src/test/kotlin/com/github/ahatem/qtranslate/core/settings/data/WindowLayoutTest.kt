@@ -601,4 +601,130 @@ class WindowLayoutTest {
             }
         }
     }
+
+    // ---- The second result ----
+
+    @Test
+    fun `the second result is below by default and a file without the field decodes to below`() {
+        assertEquals(SecondResultPlacement.BELOW, WindowLayout.DEFAULT.secondResult)
+        val json = Json { ignoreUnknownKeys = true; isLenient = true }
+        val stored = """{"panes":"SIDE_BY_SIDE","history":"TOP","languages":"TOP","services":"BOTTOM"}"""
+        val decoded = json.decodeFromString<WindowLayout>(stored)
+        assertEquals(SecondResultPlacement.BELOW, decoded.secondResult)
+        assertEquals(PaneLayout.SIDE_BY_SIDE, decoded.panes)
+        // The same inside a profile and a whole configuration, which is how a released file holds it.
+        assertEquals(
+            SecondResultPlacement.BELOW,
+            json.decodeFromString<LayoutProfile>("""{"name":"Old","layout":$stored}""").layout.secondResult,
+        )
+        assertEquals(
+            SecondResultPlacement.BELOW,
+            json.decodeFromString<Configuration>("""{"windowLayout":$stored}""").windowLayout.secondResult,
+        )
+    }
+
+    @Test
+    fun `every placement survives a round trip`() {
+        val json = Json { encodeDefaults = true }
+        SecondResultPlacement.entries.forEach { placement ->
+            val layout = WindowLayout.DEFAULT.copy(secondResult = placement)
+            assertEquals(
+                layout,
+                json.decodeFromString<WindowLayout>(json.encodeToString(WindowLayout.serializer(), layout)),
+                "$placement",
+            )
+        }
+    }
+
+    @Test
+    fun `the placement that is built follows the panes and never rewrites the stored one`() {
+        val expected = mapOf(
+            PaneLayout.STACKED to mapOf(
+                SecondResultPlacement.BELOW to SecondResultPlacement.BELOW,
+                SecondResultPlacement.WITH_RESULT to SecondResultPlacement.WITH_RESULT,
+                SecondResultPlacement.OWN_COLUMN to SecondResultPlacement.BELOW,
+            ),
+            PaneLayout.SIDE_BY_SIDE to mapOf(
+                SecondResultPlacement.BELOW to SecondResultPlacement.BELOW,
+                SecondResultPlacement.WITH_RESULT to SecondResultPlacement.WITH_RESULT,
+                SecondResultPlacement.OWN_COLUMN to SecondResultPlacement.OWN_COLUMN,
+            ),
+            PaneLayout.COMPARISON to mapOf(
+                SecondResultPlacement.BELOW to SecondResultPlacement.BELOW,
+                SecondResultPlacement.WITH_RESULT to SecondResultPlacement.BELOW,
+                SecondResultPlacement.OWN_COLUMN to SecondResultPlacement.BELOW,
+            ),
+        )
+        PaneLayout.entries.forEach { panes ->
+            SecondResultPlacement.entries.forEach { stored ->
+                val layout = WindowLayout(panes = panes, secondResult = stored)
+                assertEquals(expected.getValue(panes).getValue(stored), layout.effectiveSecondResult(panes), "$panes / $stored")
+                assertEquals(stored, layout.secondResult, "the stored value is not rewritten")
+            }
+        }
+        // A requested Comparison that is not eligible builds Stacked panes, so Stacked's rules apply.
+        val ineligible = WindowLayout(panes = PaneLayout.COMPARISON, secondResult = SecondResultPlacement.WITH_RESULT)
+        val built = ineligible.effectivePanes(isComparisonEligible = false)
+        assertEquals(SecondResultPlacement.WITH_RESULT, ineligible.effectiveSecondResult(built))
+    }
+
+    @Test
+    fun `availability of each placement for every pane layout and second result type`() {
+        PaneLayout.entries.forEach { panes ->
+            ExtraOutputType.entries.forEach { type ->
+                SecondResultPlacement.entries.forEach { option ->
+                    val actual = WindowLayout.DEFAULT.secondResultAvailability(option, panes, type)
+                    val expected: LayoutAvailability = when {
+                        type == ExtraOutputType.None ->
+                            LayoutAvailability.Disabled(LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE)
+                        option == SecondResultPlacement.BELOW -> LayoutAvailability.Enabled
+                        panes == PaneLayout.COMPARISON ->
+                            LayoutAvailability.Disabled(LayoutDisabledReason.COMPARISON_KEEPS_SECOND_RESULT_BELOW)
+                        option == SecondResultPlacement.OWN_COLUMN && panes == PaneLayout.STACKED ->
+                            LayoutAvailability.Disabled(LayoutDisabledReason.OWN_COLUMN_NEEDS_SIDE_BY_SIDE)
+                        else -> LayoutAvailability.Enabled
+                    }
+                    assertEquals(expected, actual, "$panes / $type / $option")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `with no second result chosen every control is disabled and the stored placement is kept`() {
+        PaneLayout.entries.forEach { panes ->
+            SecondResultPlacement.entries.forEach { stored ->
+                val layout = WindowLayout(panes = panes, secondResult = stored)
+                SecondResultPlacement.entries.forEach { option ->
+                    assertEquals(
+                        LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE,
+                        layout.secondResultAvailability(option, panes, ExtraOutputType.None).disabledReason,
+                        "$panes / $stored / $option",
+                    )
+                }
+                assertEquals(stored, layout.secondResult)
+            }
+        }
+    }
+
+    @Test
+    fun `every placement an available option names is one the panes build as asked`() {
+        PaneLayout.entries.forEach { panes ->
+            SecondResultPlacement.entries.forEach { option ->
+                val layout = WindowLayout(panes = panes, secondResult = option)
+                val available = layout.secondResultAvailability(option, panes, ExtraOutputType.BackwardTranslate).isEnabled
+                assertEquals(available, layout.effectiveSecondResult(panes) == option, "$panes / $option")
+            }
+        }
+    }
+
+    @Test
+    fun `a starting point leaves the second result as it was`() {
+        WindowPreset.entries.forEach { preset ->
+            SecondResultPlacement.entries.forEach { placement ->
+                val before = WindowLayout.DEFAULT.copy(secondResult = placement)
+                assertEquals(placement, preset.applyTo(before).secondResult, "$preset")
+            }
+        }
+    }
 }

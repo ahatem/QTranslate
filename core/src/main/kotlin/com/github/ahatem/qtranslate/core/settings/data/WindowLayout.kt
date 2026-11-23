@@ -41,6 +41,12 @@ data class WindowLayout(
     val shareRows: Boolean = false,
     val showStatusBar: Boolean = true,
     val density: Density = Density.COMFORTABLE,
+    /**
+     * Where the second result (the panel under [Configuration.extraOutputType]) sits. Stored whether
+     * or not a second result is chosen, and read through [effectiveSecondResult]. A file without the
+     * field means [SecondResultPlacement.BELOW], which is how every earlier window drew it.
+     */
+    val secondResult: SecondResultPlacement = SecondResultPlacement.BELOW,
 ) {
     init {
         require(languages != RegionSlot.HIDDEN) { "The language row can move but never hides" }
@@ -102,6 +108,43 @@ data class WindowLayout(
             LayoutAvailability.Disabled(LayoutDisabledReason.COMPARISON_OWNS_SERVICES)
         serviceWidget != ServiceWidget.STRIP ->
             LayoutAvailability.Disabled(LayoutDisabledReason.APPEARANCE_NEEDS_STRIP)
+        else -> LayoutAvailability.Enabled
+    }
+
+    /**
+     * The placement of the second result that is built for [effectivePanes]: [secondResult] where
+     * the panes can show it, otherwise [SecondResultPlacement.BELOW]. Beside the result needs the
+     * result to be a single pane, so Comparison keeps the second result below the board, and a
+     * column of its own needs Side by side. The stored value is not rewritten, so going back to
+     * panes that can show it restores it.
+     *
+     * It depends on the panes alone: turning the second result on or off hides or shows the panel
+     * where it is and never moves the rest of the window.
+     */
+    fun effectiveSecondResult(effectivePanes: PaneLayout): SecondResultPlacement = when {
+        effectivePanes == PaneLayout.COMPARISON -> SecondResultPlacement.BELOW
+        secondResult == SecondResultPlacement.OWN_COLUMN && effectivePanes != PaneLayout.SIDE_BY_SIDE ->
+            SecondResultPlacement.BELOW
+        else -> secondResult
+    }
+
+    /**
+     * Whether [option] can be chosen for the second result, for [effectivePanes] and the chosen
+     * [extraOutputType]. With no second result chosen nothing about its place can matter, so every
+     * option is unavailable and the stored value is kept for when one is.
+     */
+    fun secondResultAvailability(
+        option: SecondResultPlacement,
+        effectivePanes: PaneLayout,
+        extraOutputType: ExtraOutputType,
+    ): LayoutAvailability = when {
+        extraOutputType == ExtraOutputType.None ->
+            LayoutAvailability.Disabled(LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE)
+        option == SecondResultPlacement.BELOW -> LayoutAvailability.Enabled
+        effectivePanes == PaneLayout.COMPARISON ->
+            LayoutAvailability.Disabled(LayoutDisabledReason.COMPARISON_KEEPS_SECOND_RESULT_BELOW)
+        option == SecondResultPlacement.OWN_COLUMN && effectivePanes != PaneLayout.SIDE_BY_SIDE ->
+            LayoutAvailability.Disabled(LayoutDisabledReason.OWN_COLUMN_NEEDS_SIDE_BY_SIDE)
         else -> LayoutAvailability.Enabled
     }
 
@@ -247,6 +290,19 @@ enum class ServiceWidget { PICKER, STRIP }
 @Serializable
 enum class Density { COMFORTABLE, COMPACT }
 
+/**
+ * Where the second result sits, relative to the result pane. What each value means depends on the
+ * panes (see [WindowLayout.effectiveSecondResult] for where it cannot be shown):
+ *
+ * | | [BELOW] | [WITH_RESULT] | [OWN_COLUMN] |
+ * |---|---|---|---|
+ * | Stacked | full width under the panes | beside the result, under the input | not available |
+ * | Side by side | full width under both columns | under the result, in its column | a third column |
+ * | Comparison | under the board | not available | not available |
+ */
+@Serializable
+enum class SecondResultPlacement { BELOW, WITH_RESULT, OWN_COLUMN }
+
 /** A region of the window that can be placed in a slot. Declaration order is the order within a slot. */
 enum class WindowRegion {
     HISTORY, LANGUAGES, SERVICES;
@@ -272,6 +328,15 @@ enum class LayoutDisabledReason {
 
     /** Appearance applies to the strip only. */
     APPEARANCE_NEEDS_STRIP,
+
+    /** There is no second result to place until one is chosen in Settings. */
+    SECOND_RESULT_NEEDS_TYPE,
+
+    /** A column of its own for the second result needs the two panes to be side by side. */
+    OWN_COLUMN_NEEDS_SIDE_BY_SIDE,
+
+    /** Comparison's board has no single result to sit beside, so the second result stays below it. */
+    COMPARISON_KEEPS_SECOND_RESULT_BELOW,
 }
 
 /** Whether a layout control can be used, and if not, why. */

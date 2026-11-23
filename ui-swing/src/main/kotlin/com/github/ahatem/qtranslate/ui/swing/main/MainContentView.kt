@@ -46,7 +46,9 @@ import com.github.ahatem.qtranslate.ui.swing.main.menus.LayoutProfileSaver
 import com.github.ahatem.qtranslate.ui.swing.main.menus.ProfilePrompts
 import com.github.ahatem.qtranslate.ui.swing.main.menus.SwingProfilePrompts
 import com.github.ahatem.qtranslate.ui.swing.main.menus.profileStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SecondResultPopup
 import com.github.ahatem.qtranslate.ui.swing.main.menus.regionMenuStrings
+import com.github.ahatem.qtranslate.ui.swing.main.menus.secondResultMenuStrings
 import com.github.ahatem.qtranslate.ui.swing.main.layout.WorkspaceDockHost
 import com.github.ahatem.qtranslate.ui.swing.main.lookup.LookupDock
 import com.github.ahatem.qtranslate.ui.swing.imagesearch.ImageSearchPanel
@@ -292,6 +294,23 @@ class MainContentView(
         onChange = { layout -> dispatchSettings(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) }) },
         onSaveProfile = { saveLayoutAsProfile() },
     )
+
+    /** The context menu of the second result's header: where the second result sits. */
+    internal val secondResultPopup = SecondResultPopup(
+        current = {
+            lastState?.let { (main, settings) ->
+                val config = settings.workingConfiguration
+                SecondResultPopup.Current(
+                    layout = config.windowLayout,
+                    effectivePanes = config.effectivePaneLayout(main.availableTranslatorIds),
+                    extraOutputType = config.extraOutputType,
+                    isRtl = localizer.isRtl,
+                )
+            }
+        },
+        strings = { localizer.secondResultMenuStrings() },
+        onChange = { layout -> dispatchSettings(SettingsIntent.ToggleSetting { it.withWindowLayout(layout) }) },
+    ).also { extraOutputPanel.installHeaderPopup(it) }
 
     /** Asks for a name and saves the window's current layout under it. */
     fun saveLayoutAsProfile() = profileSaver.saveCurrent()

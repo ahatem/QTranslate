@@ -3,8 +3,11 @@ package com.github.ahatem.qtranslate.ui.swing.settings.panels
 import com.formdev.flatlaf.FlatClientProperties
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.LayoutAvailability
+import com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
@@ -76,10 +79,16 @@ class LayoutPanel(
 
     private val texts = LayoutTexts(localizationManager)
     private var comparisonAvailable = true
+
+    /** What the second result's combo is judged against; refreshed on every render. */
+    private var shownPanes = PaneLayout.STACKED
+    private var secondResultType = ExtraOutputType.None
+    private var shownLayout = WindowLayout.DEFAULT
     private val presetCards = LinkedHashMap<LayoutCard, JButton>()
 
     private lateinit var summaryLabel: JLabel
     private lateinit var panesCombo: JComboBox<PaneLayout>
+    private lateinit var secondResultCombo: JComboBox<SecondResultPlacement>
     private lateinit var historyCombo: JComboBox<RegionSlot>
     private lateinit var languagesCombo: JComboBox<RegionSlot>
     private lateinit var servicesCombo: JComboBox<RegionSlot>
@@ -124,6 +133,23 @@ class LayoutPanel(
             tooltip = { if (isUnavailableComparison(it)) comparisonUnavailableHint() else null },
         )
         addRow(localizationManager.getString("settings_window.layout_row_panes"), panesCombo)
+
+        secondResultCombo = enumCombo(SecondResultPlacement.entries.toTypedArray(), { texts.secondResult(it, shownPanes) }) { option ->
+            if (secondResultAvailability(option).isEnabled) {
+                writeLayout { it.copy(secondResult = option) }
+            } else {
+                // The choice is not available: put the one that is built back.
+                withoutTrigger { secondResultCombo.selectedItem = shownLayout.effectiveSecondResult(shownPanes) }
+            }
+        }
+        secondResultCombo.renderer = DisplayValueRenderer<SecondResultPlacement>(
+            text = { it?.let { option -> texts.secondResult(option, shownPanes) }.orEmpty() },
+            // The rows say what the panes allow. With no second result chosen the whole control is
+            // disabled with its own reason, so no row is greyed for that.
+            isDisabled = { it != null && !panesAvailability(it).isEnabled },
+            tooltip = { it?.let { option -> panesAvailability(option).disabledReason?.let(texts::reason) } },
+        )
+        addRow(texts.secondResultTitle(), secondResultCombo)
 
         addSeparator(localizationManager.getString("settings_window.toolbars_group"))
 
@@ -201,6 +227,13 @@ class LayoutPanel(
         }
     }
 
+    private fun secondResultAvailability(option: SecondResultPlacement): LayoutAvailability =
+        shownLayout.secondResultAvailability(option, shownPanes, secondResultType)
+
+    /** Whether the panes alone allow [option]: the answer for a second result that is chosen. */
+    private fun panesAvailability(option: SecondResultPlacement): LayoutAvailability =
+        shownLayout.secondResultAvailability(option, shownPanes, ExtraOutputType.BackwardTranslate)
+
     private fun isUnavailableComparison(pane: PaneLayout?): Boolean =
         pane == PaneLayout.COMPARISON && !comparisonAvailable
 
@@ -262,9 +295,24 @@ class LayoutPanel(
         comparisonAvailable = configuration.isComparisonEligible(translatorIds)
         val effectivePanes = configuration.effectivePaneLayout(translatorIds)
 
+        shownLayout = layout
+        shownPanes = effectivePanes
+        secondResultType = configuration.extraOutputType
+
         withoutTrigger {
             summaryLabel.text = summaryOf(layout)
             panesCombo.selectedItem = layout.panes
+            // What is built, which differs from the stored value where the panes cannot show it.
+            secondResultCombo.selectedItem = layout.effectiveSecondResult(effectivePanes)
+            // With no second result chosen nothing about its place applies; the stored choice is kept.
+            gate(
+                secondResultCombo,
+                if (secondResultType == ExtraOutputType.None) {
+                    LayoutAvailability.Disabled(LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE)
+                } else {
+                    LayoutAvailability.Enabled
+                },
+            )
             historyCombo.selectedItem = layout.history
             languagesCombo.selectedItem = layout.languages
             servicesCombo.selectedItem = layout.services

@@ -4,6 +4,7 @@ import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
@@ -53,6 +54,32 @@ class LayoutTexts(private val localizer: LocalizationManager) {
             localizer.getString("settings_window.layout_selector_own_row")
         LayoutDisabledReason.APPEARANCE_NEEDS_STRIP ->
             localizer.getString("settings_window.layout_appearance_needs_strip")
+        LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE ->
+            localizer.getString("settings_window.layout_second_result_needs_type")
+        LayoutDisabledReason.OWN_COLUMN_NEEDS_SIDE_BY_SIDE ->
+            localizer.getString("settings_window.layout_second_result_needs_side_by_side")
+        LayoutDisabledReason.COMPARISON_KEEPS_SECOND_RESULT_BELOW ->
+            localizer.getString("settings_window.layout_second_result_below_board_only")
+    }
+
+    /** What the second result's group is called. */
+    fun secondResultTitle(): String = localizer.getString("settings_window.layout_row_second_result")
+
+    /**
+     * What [placement] is called for [panes]: the words say where the second result goes in the
+     * arrangement it is chosen for, so the same value reads differently in each.
+     */
+    fun secondResult(placement: SecondResultPlacement, panes: PaneLayout): String = when (placement) {
+        SecondResultPlacement.BELOW -> when (panes) {
+            PaneLayout.STACKED -> localizer.getString("settings_window.layout_second_result_below_result")
+            PaneLayout.SIDE_BY_SIDE -> localizer.getString("settings_window.layout_second_result_below_both")
+            PaneLayout.COMPARISON -> localizer.getString("settings_window.layout_second_result_below_board")
+        }
+        SecondResultPlacement.WITH_RESULT -> when (panes) {
+            PaneLayout.SIDE_BY_SIDE -> localizer.getString("settings_window.layout_second_result_under_result")
+            else -> localizer.getString("settings_window.layout_second_result_beside_result")
+        }
+        SecondResultPlacement.OWN_COLUMN -> localizer.getString("settings_window.layout_second_result_third_column")
     }
 
     /** The region's name as the Settings page and the window's menus call it. */

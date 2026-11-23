@@ -1478,6 +1478,7 @@ class MainAppFrame(
             showStatusBar = localizer.getString("main_window_main_menu.show_status_bar"),
             layoutMenu = LayoutMenuStrings(
                 region = localizer.regionMenuStrings(),
+                secondResult = localizer.secondResultMenuStrings(),
                 savedLayouts = localizer.getString("main_window_main_menu.layout_saved_layouts"),
                 saveProfile = localizer.getString("main_window_main_menu.region_save_profile"),
                 manageLayouts = localizer.getString("main_window_main_menu.layout_manage"),

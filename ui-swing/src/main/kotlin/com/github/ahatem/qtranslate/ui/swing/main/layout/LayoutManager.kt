@@ -46,9 +46,12 @@ class LayoutManager(
         val key = Key(
             // The strip's appearance and the density restyle mounted components; they do not
             // change which component sits where, so they never cost a rebuild.
+            // The second result's stored place is replaced by the one the panes build: a stored
+            // value they cannot show builds the same window as the one they fall back to.
             layout.copy(
                 stripAppearance = WindowLayout.DEFAULT.stripAppearance,
                 density = WindowLayout.DEFAULT.density,
+                secondResult = layout.effectiveSecondResult(effectivePanes),
             ),
             effectivePanes,
             isRtl,

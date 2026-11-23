@@ -9,9 +9,11 @@ import com.github.ahatem.qtranslate.core.main.domain.model.ServiceInfo
 import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.mvi.MainState
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.FeatureHost
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
@@ -24,7 +26,9 @@ import com.github.ahatem.qtranslate.core.settings.mvi.SettingsState
 import com.github.ahatem.qtranslate.ui.swing.main.history.TranslationHistoryBar
 import com.github.ahatem.qtranslate.ui.swing.main.input.InputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.languagebar.LanguageSelectionBar
+import com.github.ahatem.qtranslate.ui.swing.main.menus.SecondResultMenu
 import com.github.ahatem.qtranslate.ui.swing.main.output.CompareBoard
+import com.github.ahatem.qtranslate.ui.swing.main.output.ExtraOutputPanel
 import com.github.ahatem.qtranslate.ui.swing.main.output.OutputTextPanel
 import com.github.ahatem.qtranslate.ui.swing.main.selector.ProviderChip
 import com.github.ahatem.qtranslate.ui.swing.main.selector.TranslatorSelector
@@ -41,6 +45,8 @@ import java.nio.file.Files
 import javax.swing.AbstractButton
 import javax.swing.JComponent
 import javax.swing.JMenuItem
+import javax.swing.JRadioButtonMenuItem
+import javax.swing.JToggleButton
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -408,6 +414,80 @@ class WindowRouteTest {
             generateSequence(view.statusBar.notificationButton.parent) { it.parent }.filterIsInstance<StatusBar>().firstOrNull(),
         )
         assertSame(view.statusBar.notificationAnchor, view.statusBar.notificationButton, "the popover opens from the button")
+    }
+
+    /** Renders [layout] with [type] chosen as the second result's content. */
+    private fun renderWithType(view: MainContentView, state: MainState, layout: WindowLayout, type: ExtraOutputType) {
+        val configuration = base.copy(extraOutputType = type).withWindowLayout(layout)
+        onEdt { view.render(state, SettingsState(originalConfiguration = configuration, workingConfiguration = configuration)) }
+        repeat(2) { onEdt { } }
+    }
+
+    @Test
+    fun `the second result keeps its toggles, gear and menu on a visible route in every placement`() {
+        val types = ExtraOutputType.entries
+        var checked = 0
+        listOf(false, true).forEach { rtl ->
+            val view = view(localizer(rtl))
+            PaneLayout.entries.forEach { panes ->
+                SecondResultPlacement.entries.forEach { placement ->
+                    types.forEach { type ->
+                        val layout = WindowLayout(panes = panes, secondResult = placement)
+                        val context = "rtl=$rtl panes=$panes placement=$placement type=$type"
+                        renderWithType(view, eligibleState, layout, type)
+                        val panel = assertNotNull(find<ExtraOutputPanel>(view), "$context: the panel is mounted")
+                        // The header's controls: the body has buttons of its own (its scroll bars).
+                        val header = (panel.layout as BorderLayout).getLayoutComponent(BorderLayout.NORTH)
+                        val buttons = descendants(header).filterIsInstance<AbstractButton>().toList()
+                        val popup = view.secondResultPopup
+                        if (type == ExtraOutputType.None) {
+                            assertFalse(visibleIn(panel, view), "$context: nothing of the second result shows")
+                        } else {
+                            assertTrue(visibleIn(panel, view), "$context: the second result shows")
+                            val toggles = buttons.filterIsInstance<JToggleButton>()
+                            assertEquals(3, toggles.size, context)
+                            toggles.forEach { assertTrue(visibleIn(it, view), "$context: a header toggle is not shown") }
+                            // The gear is shown by the service options of the type, so only that it is
+                            // mounted in the header, with the rest, is a property of the placement.
+                            assertEquals(4, buttons.size, "$context: three toggles and the gear")
+                        }
+                        // Right-click on any control of the header opens the second result's menu.
+                        assertSame(panel.headerPopupMenu, popup, "$context: the header carries the menu")
+                        buttons.forEach { assertSame(popup, it.componentPopupMenu, "$context: ${it.javaClass.simpleName} ${it.name ?: it.toolTipText} in ${it.parent?.javaClass?.simpleName}") }
+
+                        popup.refresh()
+                        val radios = popup.components.filterIsInstance<JRadioButtonMenuItem>()
+                            .associateBy { it.name.removePrefix(SecondResultMenu.OPTION_PREFIX) }
+                        assertEquals(SecondResultPlacement.entries.map { it.name }.toSet(), radios.keys, context)
+                        val effective = layout.effectiveSecondResult(panes)
+                        assertEquals(effective.name, radios.entries.single { it.value.isSelected }.key, "$context: the built placement is checked")
+                        radios.forEach { (name, item) ->
+                            val available = layout.secondResultAvailability(SecondResultPlacement.valueOf(name), panes, type)
+                            assertEquals(available.disabledReason == null, item.isEnabled, "$context: $name")
+                        }
+                        checked++
+                    }
+                }
+            }
+        }
+        assertEquals(2 * 3 * 3 * 4, checked)
+    }
+
+    @Test
+    fun `choosing from the second result popup writes the layout once through the settings path`() {
+        val view = view(localizer())
+        val layout = WindowLayout(panes = PaneLayout.SIDE_BY_SIDE)
+        renderWithType(view, eligibleState, layout, ExtraOutputType.BackwardTranslate)
+        settingsWrites.clear()
+        val popup = view.secondResultPopup
+        popup.refresh()
+        popup.components.filterIsInstance<JRadioButtonMenuItem>()
+            .single { it.name == "${SecondResultMenu.OPTION_PREFIX}${SecondResultPlacement.OWN_COLUMN}" }.doClick(0)
+        val write = settingsWrites.single() as SettingsIntent.ToggleSetting
+        assertEquals(
+            layout.copy(secondResult = SecondResultPlacement.OWN_COLUMN),
+            write.update(base.withWindowLayout(layout)).windowLayout,
+        )
     }
 
     private fun layoutTree(root: Container) {

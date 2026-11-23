@@ -24,6 +24,8 @@ data class LayoutPresetInfo(
 /** The words of the layout entries the Options menu adds to the panes and the status bar. */
 data class LayoutMenuStrings(
     val region: RegionMenuStrings,
+    /** Where the second result sits. */
+    val secondResult: SecondResultMenuStrings,
     /** Heading above the saved layouts. */
     val savedLayouts: String,
     val saveProfile: String,
@@ -175,6 +177,12 @@ class ViewOptionsMenu(
             WindowRegion.entries.forEach { region ->
                 add(RegionMenu(region, config.windowLayout, layoutMenu.region, actions.onChangeLayout, effectivePanes).menu())
             }
+            add(
+                SecondResultMenu(
+                    config.windowLayout, effectivePanes, config.extraOutputType,
+                    layoutMenu.secondResult, actions.onChangeLayout,
+                ).menu()
+            )
         }
         add(JSeparator())
         add(JCheckBoxMenuItem(strings.showStatusBar).apply {

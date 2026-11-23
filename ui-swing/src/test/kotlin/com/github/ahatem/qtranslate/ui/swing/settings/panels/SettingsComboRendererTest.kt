@@ -5,9 +5,11 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceRole
 import com.github.ahatem.qtranslate.core.localization.LanguageTomlParser
 import com.github.ahatem.qtranslate.core.localization.LocalizationManager
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServicePreset
 import com.github.ahatem.qtranslate.core.settings.data.SettingsRepository
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
@@ -388,6 +390,63 @@ class SettingsComboRendererTest {
             localizer.getString("settings_window.layout_card_comparison_hint"),
             onEdt { comparisonCard(panel).toolTipText },
         )
+    }
+
+    /** The second result's picker, through its label. */
+    private fun secondResultCombo(panel: Container): JComboBox<*> =
+        labels(panel).single { it.text == localizer.getString("settings_window.layout_row_second_result") }
+            .labelFor as JComboBox<*>
+
+    @Test
+    fun `with no second result chosen its placement picker is off and says why`() {
+        val store = newStore(Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.None))
+        val panel = testPanel(store, { emptyList() })
+        val combo = onEdt { secondResultCombo(panel) }
+
+        onEdt {
+            assertFalse(combo.isEnabled)
+            assertEquals(localizer.getString("settings_window.layout_second_result_needs_type"), combo.toolTipText)
+            // The stored choice is shown, not reset.
+            assertEquals(SecondResultPlacement.BELOW, combo.selectedItem)
+        }
+    }
+
+    @Test
+    fun `a chosen second result offers the placements the panes allow and dims the rest with the reason`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate)
+        val panel = testPanel(newStore(config), { emptyList() })
+        val combo = onEdt { secondResultCombo(panel) }
+
+        onEdt {
+            assertTrue(combo.isEnabled)
+            assertEquals(SecondResultPlacement.entries, combo.items(), "all three are listed")
+            assertEquals(
+                listOf("Below the result", "Beside the result", "Third column"),
+                combo.renderedTexts(),
+                "stacked panes name them for the stacked window",
+            )
+            val own = combo.rowAt(combo.items().indexOf(SecondResultPlacement.OWN_COLUMN), selected = false)
+            assertEquals(localizer.getString("settings_window.layout_second_result_needs_side_by_side"), own.toolTipText)
+            assertNull(combo.rowAt(combo.items().indexOf(SecondResultPlacement.BELOW), selected = false).toolTipText)
+            assertNull(combo.rowAt(combo.items().indexOf(SecondResultPlacement.WITH_RESULT), selected = false).toolTipText)
+        }
+    }
+
+    @Test
+    fun `choosing a placement writes it once and a choice the panes cannot show writes nothing`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Summarize)
+        val store = newStore(config)
+        val panel = testPanel(store, { emptyList() })
+        val combo = onEdt { secondResultCombo(panel) }
+
+        onEdt { combo.selectedItem = SecondResultPlacement.WITH_RESULT }
+        assertEquals(SecondResultPlacement.WITH_RESULT, store.state.value.workingConfiguration.windowLayout.secondResult)
+        onEdt { panel.render(store.state.value) }
+
+        // A column of its own needs Side by side: the choice is refused and the built one comes back.
+        onEdt { combo.selectedItem = SecondResultPlacement.OWN_COLUMN }
+        assertEquals(SecondResultPlacement.WITH_RESULT, store.state.value.workingConfiguration.windowLayout.secondResult)
+        assertEquals(SecondResultPlacement.WITH_RESULT, onEdt { combo.selectedItem })
     }
 
     @Test

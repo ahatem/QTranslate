@@ -13,8 +13,10 @@ import com.github.ahatem.qtranslate.core.main.mvi.MainIntent
 import com.github.ahatem.qtranslate.core.main.domain.model.ComparisonStatus
 import com.github.ahatem.qtranslate.core.ocr.OcrServiceCatalog
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.ServiceSelectorAppearance
 import com.github.ahatem.qtranslate.core.settings.data.ServiceWidget
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
@@ -409,7 +411,7 @@ private class Shots(
      * A curated list of window layouts, each in English light and Arabic dark.
      *
      * Not a sweep: the four cards and the two pane arrangements that are not cards, then one shot
-     * for each placement they do not show. The
+     * for each placement they do not show, then each place the second result can sit. The
      * Arabic half proves the mirroring and the dark half is where contrast faults show, so one
      * pass covers both. Comparison scenes get two usable translators so the board is eligible.
      */
@@ -445,11 +447,29 @@ private class Shots(
                 serviceWidget = ServiceWidget.STRIP,
                 stripAppearance = ServiceSelectorAppearance.ICONS_ONLY,
             ),
+            // The second result, a backward translation, in each place the panes let it sit.
+            "stacked-below" to WindowLayout(secondResult = SecondResultPlacement.BELOW),
+            "stacked-beside" to WindowLayout(secondResult = SecondResultPlacement.WITH_RESULT),
+            "sbs-below" to WindowLayout(panes = PaneLayout.SIDE_BY_SIDE, secondResult = SecondResultPlacement.BELOW),
+            "sbs-under-result" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                secondResult = SecondResultPlacement.WITH_RESULT,
+            ),
+            "sbs-third-column" to WindowLayout(
+                panes = PaneLayout.SIDE_BY_SIDE,
+                secondResult = SecondResultPlacement.OWN_COLUMN,
+            ),
+            "comparison-below" to WindowLayout(panes = PaneLayout.COMPARISON, secondResult = SecondResultPlacement.BELOW),
+        )
+        val withSecondResult = setOf(
+            "stacked-below", "stacked-beside", "sbs-below", "sbs-under-result", "sbs-third-column", "comparison-below",
         )
         val secondaries = listOf("Bing Translate", "DeepL", "Yandex Web")
         scenes.forEach { (name, layout) ->
             fun scene(theme: String, rtl: Boolean): Configuration {
-                val base = Scenes.slots(layout, theme, rtl)
+                val base = Scenes.slots(layout, theme, rtl).let {
+                    if (name in withSecondResult) it.copy(extraOutputType = ExtraOutputType.BackwardTranslate) else it
+                }
                 return if (layout.panes == PaneLayout.COMPARISON) comparisonConfig(theme, secondaries, base) else base
             }
 

@@ -6,6 +6,7 @@ import com.github.ahatem.qtranslate.core.settings.data.FeatureHost
 import com.github.ahatem.qtranslate.core.settings.data.LayoutPresetIds
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.WindowFeature
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
@@ -35,13 +36,24 @@ sealed interface LayoutComponentRefs {
 
     data class WithSplitPanes(
         val mainSplit: JSplitPane,
+        /**
+         * The split that holds the second result: under everything (the default), beside or under
+         * the result, or the one that gives it a column. Which child holds the panel is found when
+         * the panel is shown or hidden, so the same code serves every placement.
+         */
         val extraSplit: JSplitPane,
         /**
          * Optional layout-owned boundary above the extra panel (Comparison
          * only). Toggled together with the panel so a hidden Extra Output
          * leaves no stray separation behind.
          */
-        val extraBoundary: JComponent? = null
+        val extraBoundary: JComponent? = null,
+        /**
+         * Told after every show or hide, for a structure whose other panes change size with it:
+         * the three columns give each pane a third while the second result shows and a half
+         * while it does not.
+         */
+        val onExtraVisibility: (Boolean) -> Unit = {},
     ) : LayoutComponentRefs {
         override fun updateExtraOutputVisibility(visible: Boolean, extraPanel: JComponent) {
             SwingUtilities.invokeLater {
@@ -50,15 +62,26 @@ sealed interface LayoutComponentRefs {
                 extraPanel.isVisible = visible
                 extraBoundary?.isVisible = visible
                 // Whatever holds the panel in the split goes with it: a hidden panel inside a visible
-                // holder still claims the holder's minimum height, and leaves an empty band.
-                extraSplit.bottomComponent?.isVisible = visible
+                // holder still claims the holder's minimum size, and leaves an empty band.
+                val holder = listOfNotNull(extraSplit.leftComponent, extraSplit.rightComponent)
+                    .firstOrNull { it === extraPanel || SwingUtilities.isDescendingFrom(extraPanel, it) }
+                holder?.isVisible = visible
                 if (visible) {
                     extraSplit.dividerSize = UISpacing.DIVIDER_SIZE
-                    extraSplit.resetToPreferredSizes()
+                    val beside = extraSplit as? MirroredSplitPane
+                    if (beside != null && extraSplit.orientation == JSplitPane.HORIZONTAL_SPLIT) {
+                        // Two panes side by side share the width evenly, whatever they last measured.
+                        // Now if the pane has a size, otherwise when it first gets one.
+                        if (!beside.applyLeadingProportion(0.5)) beside.setLeadingProportion(0.5)
+                    } else {
+                        extraSplit.resetToPreferredSizes()
+                    }
                 } else {
                     extraSplit.dividerSize = 0
-                    extraSplit.setDividerLocation(1.0)
+                    // The hidden side collapses: the first slot to the start, the second to the end.
+                    extraSplit.setDividerLocation(if (holder != null && holder === extraSplit.leftComponent) 0.0 else 1.0)
                 }
+                onExtraVisibility(visible)
                 extraSplit.isContinuousLayout = wasContinuous
                 extraSplit.revalidate()
                 extraSplit.repaint()
@@ -235,6 +258,17 @@ object LayoutBuilders {
  * | ABOVE_RESULTS | between input and output | a full-width row directly above both columns, below any TOP rows | above the board |
  * | BOTTOM | below the panes, above the status bar | same | same |
  *
+ * The second result (the panel under the extra output type) follows [WindowLayout.effectiveSecondResult]:
+ *
+ * | | BELOW | WITH_RESULT | OWN_COLUMN |
+ * |---|---|---|---|
+ * | Stacked | full width under the panes | beside the result, under the input | builds as BELOW |
+ * | Side by side | full width under both columns | under the result, in its column | a third column |
+ * | Comparison | under the board | builds as BELOW | builds as BELOW |
+ *
+ * ABOVE_RESULTS rows sit above the whole results area: the result and, when they share it, the
+ * second result with it.
+ *
  * A region absent from the plan (hidden, or the services region under Comparison) is not mounted
  * and is made invisible; the window hosts its commands elsewhere, as [WindowLayout.requiredHosts]
  * says.
@@ -260,9 +294,10 @@ object SlotLayout {
         // The footer sits outside the padded content, so its rows bring the window's side padding.
         val bottom = slot(plan, layout, effectivePanes, RegionSlot.BOTTOM, components, rows, horizontalInset = UISpacing.PADDING)
 
+        val secondResult = layout.effectiveSecondResult(effectivePanes)
         val (panes, refs) = when (effectivePanes) {
-            PaneLayout.STACKED -> stacked(components, aboveResults)
-            PaneLayout.SIDE_BY_SIDE -> sideBySide(components, aboveResults, isRtl)
+            PaneLayout.STACKED -> stacked(components, aboveResults, secondResult, isRtl)
+            PaneLayout.SIDE_BY_SIDE -> sideBySide(components, aboveResults, secondResult, isRtl)
             PaneLayout.COMPARISON -> comparison(components, aboveResults)
         }
 
@@ -334,7 +369,35 @@ object SlotLayout {
         add(content, BorderLayout.CENTER)
     }
 
-    private fun stacked(components: ComponentRegistry, aboveResults: JComponent?): Pair<JComponent, LayoutComponentRefs> {
+    /** Two panes side by side in reading order, [leading] first, mirrored in a right-to-left window. */
+    private fun columns(leading: JComponent, trailing: JComponent, isRtl: Boolean): MirroredSplitPane {
+        leading.minimumSize = Dimension(UISpacing.MIN_PANEL_WIDTH, 0)
+        trailing.minimumSize = Dimension(UISpacing.MIN_PANEL_WIDTH, 0)
+        return MirroredSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, leading, trailing).apply {
+            leadingResizeWeight = 0.5
+            dividerSize = UISpacing.DIVIDER_SIZE
+            clearBorder()
+            isMirrored = isRtl
+            setLeadingProportion(0.5)
+        }
+    }
+
+    private fun stacked(
+        components: ComponentRegistry,
+        aboveResults: JComponent?,
+        secondResult: SecondResultPlacement,
+        isRtl: Boolean,
+    ): Pair<JComponent, LayoutComponentRefs> {
+        if (secondResult == SecondResultPlacement.WITH_RESULT) {
+            // The output and the second result share the area under the input, side by side.
+            val beside = columns(components.outputPanel, components.extraOutputPanel, isRtl)
+            val mainSplit = LayoutBuilders.createVerticalSplit(
+                top = components.inputPanel,
+                bottom = section(aboveResults, beside),
+                resizeWeight = 0.5
+            )
+            return mainSplit to LayoutComponentRefs.WithSplitPanes(mainSplit, beside)
+        }
         val mainSplit = LayoutBuilders.createVerticalSplit(
             top = components.inputPanel,
             bottom = section(aboveResults, components.outputPanel),
@@ -347,17 +410,58 @@ object SlotLayout {
     private fun sideBySide(
         components: ComponentRegistry,
         aboveResults: JComponent?,
+        secondResult: SecondResultPlacement,
         isRtl: Boolean,
     ): Pair<JComponent, LayoutComponentRefs> {
         // Above results is a full-width row directly above both columns, below any TOP rows.
-        val mainSplit = ResponsivePairSplit(
-            leading = components.inputPanel,
-            trailing = components.outputPanel,
-            isRtl = isRtl
-        ).split
-        val extra = extraSplit(section(aboveResults, mainSplit), components.extraOutputPanel)
-        return extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
+        return when (secondResult) {
+            SecondResultPlacement.WITH_RESULT -> {
+                // The result column is split: the output on top, the second result under it. The
+                // input keeps the full height.
+                val column = LayoutBuilders.createVerticalSplit(
+                    top = components.outputPanel,
+                    bottom = components.extraOutputPanel,
+                    resizeWeight = 0.8,
+                    bottomMinHeight = UISpacing.MIN_EXTRA_HEIGHT
+                )
+                val pair = ResponsivePairSplit(
+                    leading = components.inputPanel,
+                    trailing = column,
+                    isRtl = isRtl,
+                    trailingMinHeight = UISpacing.MIN_PANEL_HEIGHT + UISpacing.MIN_EXTRA_HEIGHT + UISpacing.DIVIDER_SIZE,
+                )
+                section(aboveResults, pair.split) to LayoutComponentRefs.WithSplitPanes(pair.split, column)
+            }
+            SecondResultPlacement.OWN_COLUMN -> {
+                // Three columns: the input, then the output and the second result, which share what
+                // the input leaves. Narrow, the input goes above the other two.
+                val results = columns(components.outputPanel, components.extraOutputPanel, isRtl)
+                val pair = ResponsivePairSplit(
+                    leading = components.inputPanel,
+                    trailing = results,
+                    isRtl = isRtl,
+                    trailingMinWidth = 2 * UISpacing.MIN_PANEL_WIDTH + UISpacing.DIVIDER_SIZE,
+                    sideBySideShare = THIRD,
+                )
+                section(aboveResults, pair.split) to LayoutComponentRefs.WithSplitPanes(
+                    pair.split, results,
+                    onExtraVisibility = { shown -> pair.setSideBySideShare(if (shown) THIRD else 0.5) },
+                )
+            }
+            SecondResultPlacement.BELOW -> {
+                val mainSplit = ResponsivePairSplit(
+                    leading = components.inputPanel,
+                    trailing = components.outputPanel,
+                    isRtl = isRtl
+                ).split
+                val extra = extraSplit(section(aboveResults, mainSplit), components.extraOutputPanel)
+                extra to LayoutComponentRefs.WithSplitPanes(mainSplit, extra)
+            }
+        }
     }
+
+    /** The input's share of the width while it has two panes beside it. */
+    private const val THIRD = 1.0 / 3.0
 
     private fun comparison(components: ComponentRegistry, aboveResults: JComponent?): Pair<JComponent, LayoutComponentRefs> {
         // One logical results viewport: the board owns the primary provider and every comparison

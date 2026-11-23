@@ -61,10 +61,14 @@ history and services hidden, with their commands and the provider chip in the in
 languages sharing the top row with the services on a row of their own beneath
 (`services-top-own-row`), side by side with the languages above the results
 (`side-by-side-languages-above-results`, a full-width row above both columns), Comparison with history at the bottom, scrolled to the
-top of the board (`comparison-history-bottom`) and an icon-only service strip (`icon-strip`).
-Thirteen layouts, 26 files. The scene ends with the history row's own context menu, which is how the
+top of the board (`comparison-history-bottom`) and an icon-only service strip (`icon-strip`). Then
+each place the second result (a backward translation here) can sit: below the result in stacked
+panes (`stacked-below`), beside it (`stacked-beside`), below both columns of side by side
+(`sbs-below`), under the result in its column (`sbs-under-result`), in a third column of its own
+(`sbs-third-column`) and below the Comparison board (`comparison-below`).
+Nineteen layouts, 38 files. The scene ends with the history row's own context menu, which is how the
 window is arranged from the window itself, open over a stacked window in English light
-(`slots-region-menu-history-light`) and Arabic dark (`slots-region-menu-history-rtl-dark`): 28 files
+(`slots-region-menu-history-light`) and Arabic dark (`slots-region-menu-history-rtl-dark`): 40 files
 in all. It is the scene to run after touching anything about how the window arranges itself.
 Use `QTRANSLATE_SCREENSHOT_PLATE_LABEL=none` to composite without the plate caption, for consumers
 that label the shots themselves — the website does.

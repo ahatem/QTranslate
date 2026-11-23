@@ -2,10 +2,12 @@ package com.github.ahatem.qtranslate.ui.swing.main.menus
 
 import com.github.ahatem.qtranslate.core.settings.data.Configuration
 import com.github.ahatem.qtranslate.core.settings.data.Density
+import com.github.ahatem.qtranslate.core.settings.data.ExtraOutputType
 import com.github.ahatem.qtranslate.core.settings.data.LayoutDisabledReason
 import com.github.ahatem.qtranslate.core.settings.data.LayoutProfile
 import com.github.ahatem.qtranslate.core.settings.data.PaneLayout
 import com.github.ahatem.qtranslate.core.settings.data.RegionSlot
+import com.github.ahatem.qtranslate.core.settings.data.SecondResultPlacement
 import com.github.ahatem.qtranslate.core.settings.data.WindowLayout
 import com.github.ahatem.qtranslate.core.settings.data.WindowRegion
 import com.github.ahatem.qtranslate.core.settings.data.withLayoutProfiles
@@ -35,6 +37,12 @@ class LayoutMenuTest {
         shareRow = "Share row", selector = "Selector", widgetName = { it.name }, stripStyle = "Strip style",
         appearanceName = { it.name }, density = "Density", densityName = { it.name },
         saveProfile = "Save layout as profile...", reason = { "reason ${it.name}" },
+    )
+
+    private val secondResultStrings = SecondResultMenuStrings(
+        title = "Second result",
+        optionName = { option, panes -> "${option.name} in ${panes.name}" },
+        reason = { "reason ${it.name}" },
     )
 
     private fun options(config: Configuration, comparisonAvailable: Boolean = true, layoutMenu: Boolean = true): JMenu {
@@ -67,7 +75,9 @@ class LayoutMenuTest {
         autoCheckForUpdates = "Auto", checkForUpdates = "Check", exit = "Exit", layoutPresets = "Layout Presets",
         layoutComparisonAvailable = comparisonAvailable, showStatusBar = "Show Status Bar",
         layoutMenu = if (layoutMenu) {
-            LayoutMenuStrings(regionStrings, "Saved layouts", "Save layout as profile...", "Manage layouts...")
+            LayoutMenuStrings(
+                regionStrings, secondResultStrings, "Saved layouts", "Save layout as profile...", "Manage layouts...",
+            )
         } else {
             null
         },
@@ -86,8 +96,8 @@ class LayoutMenuTest {
         val menu = options(Configuration.DEFAULT.withLayoutProfiles(listOf(LayoutProfile("Work", compact))))
         assertEquals(
             listOf(
-                "Layout Presets", "region HISTORY", "region LANGUAGES", "region SERVICES", "Show Status Bar",
-                "Saved layouts", "Work", "Save layout as profile...", "Manage layouts...",
+                "Layout Presets", "region HISTORY", "region LANGUAGES", "region SERVICES", "Second result",
+                "Show Status Bar", "Saved layouts", "Work", "Save layout as profile...", "Manage layouts...",
             ),
             menu.items().map { it.text },
         )
@@ -132,6 +142,82 @@ class LayoutMenuTest {
         assertTrue(services.positions().all { it.isEnabled })
     }
 
+    private fun JMenu.secondResult() = items().filterIsInstance<JMenu>().single { it.name == SecondResultMenu.SUBMENU }
+
+    private fun JMenu.placements() = items().filterIsInstance<JRadioButtonMenuItem>()
+        .filter { it.name?.startsWith(SecondResultMenu.OPTION_PREFIX) == true }
+
+    @Test
+    fun `the second result submenu offers the three placements, checked as the window is built`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate)
+            .withWindowLayout(WindowLayout(panes = PaneLayout.SIDE_BY_SIDE, secondResult = SecondResultPlacement.WITH_RESULT))
+        val group = options(config).secondResult()
+        assertEquals("Second result", group.text)
+        assertEquals(
+            listOf("BELOW in SIDE_BY_SIDE", "WITH_RESULT in SIDE_BY_SIDE", "OWN_COLUMN in SIDE_BY_SIDE"),
+            group.placements().map { it.text },
+        )
+        assertEquals(listOf(false, true, false), group.placements().map { it.isSelected })
+        assertTrue(group.placements().all { it.isEnabled })
+    }
+
+    @Test
+    fun `choosing a placement writes the whole layout once through the one callback`() {
+        val sideBySide = compact.copy(panes = PaneLayout.SIDE_BY_SIDE)
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Summarize).withWindowLayout(sideBySide)
+        val group = options(config).secondResult()
+        group.item("second:OWN_COLUMN").doClick(0)
+        assertEquals(listOf(sideBySide.copy(secondResult = SecondResultPlacement.OWN_COLUMN)), applied)
+        // Choosing what is already stored writes nothing.
+        group.item("second:BELOW").doClick(0)
+        assertEquals(1, applied.size)
+    }
+
+    @Test
+    fun `with no second result chosen every placement is disabled with the reason`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.None)
+        val group = options(config).secondResult()
+        group.placements().forEach {
+            assertFalse(it.isEnabled, it.text)
+            assertEquals("reason ${LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE.name}", it.toolTipText)
+        }
+        group.doClickAll()
+        assertEquals(emptyList(), applied, "a disabled choice writes nothing")
+        // The reason is also a line in the menu, so it does not depend on hovering.
+        assertTrue(group.items().any { it.text == "reason ${LayoutDisabledReason.SECOND_RESULT_NEEDS_TYPE.name}" && !it.isEnabled })
+    }
+
+    private fun JMenu.doClickAll() = placements().forEach { it.doClick(0) }
+
+    @Test
+    fun `under comparison only below is offered and the others say why`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.Rewrite)
+            .withWindowLayout(WindowLayout(panes = PaneLayout.COMPARISON, secondResult = SecondResultPlacement.OWN_COLUMN))
+        val group = options(config).secondResult()
+        val byOption = group.placements().associateBy { it.name }
+        assertTrue(byOption.getValue("second:BELOW").isEnabled)
+        listOf("second:WITH_RESULT", "second:OWN_COLUMN").forEach {
+            assertFalse(byOption.getValue(it).isEnabled, it)
+            assertEquals("reason ${LayoutDisabledReason.COMPARISON_KEEPS_SECOND_RESULT_BELOW.name}", byOption.getValue(it).toolTipText)
+        }
+        // A stored choice the panes cannot show is built as below, and the check says so.
+        assertTrue(byOption.getValue("second:BELOW").isSelected)
+        assertFalse(byOption.getValue("second:OWN_COLUMN").isSelected)
+    }
+
+    @Test
+    fun `stacked has no column of its own and says it needs side by side`() {
+        val config = Configuration.DEFAULT.copy(extraOutputType = ExtraOutputType.BackwardTranslate)
+            .withWindowLayout(WindowLayout(panes = PaneLayout.STACKED))
+        val byOption = options(config).secondResult().placements().associateBy { it.name }
+        assertTrue(byOption.getValue("second:WITH_RESULT").isEnabled)
+        assertFalse(byOption.getValue("second:OWN_COLUMN").isEnabled)
+        assertEquals(
+            "reason ${LayoutDisabledReason.OWN_COLUMN_NEEDS_SIDE_BY_SIDE.name}",
+            byOption.getValue("second:OWN_COLUMN").toolTipText,
+        )
+    }
+
     @Test
     fun `the saved layout equal to the window is checked and any difference checks none`() {
         val profiles = listOf(LayoutProfile("Work", compact), LayoutProfile("Focus", focus))
@@ -170,8 +256,8 @@ class LayoutMenuTest {
         val menu = options(Configuration.DEFAULT)
         assertEquals(
             listOf(
-                "Layout Presets", "region HISTORY", "region LANGUAGES", "region SERVICES", "Show Status Bar",
-                "Save layout as profile...", "Manage layouts...",
+                "Layout Presets", "region HISTORY", "region LANGUAGES", "region SERVICES", "Second result",
+                "Show Status Bar", "Save layout as profile...", "Manage layouts...",
             ),
             menu.items().map { it.text },
         )

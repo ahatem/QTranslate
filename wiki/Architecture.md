@@ -224,6 +224,26 @@ write one) loads as `ABOVE_RESULTS`.
   plan; `LayoutManager` rebuilds only when the arrangement changes.
 - A requested Comparison without two usable translators renders Stacked. The stored preference is
   not rewritten, so the board returns once it is eligible again.
+- The second result (the extra output: backward translation, summary or rewrite) has its own
+  placement, `WindowLayout.secondResult`: `BELOW` (the default, and what a stored layout with no
+  such field decodes to), `WITH_RESULT` or `OWN_COLUMN`. What each means depends on the panes:
+
+  | | `BELOW` | `WITH_RESULT` | `OWN_COLUMN` |
+  |---|---|---|---|
+  | Stacked | full width under the panes | beside the result, under the input | not offered; built as `BELOW` |
+  | Side by side | full width under both columns | under the result, in the result column; the input keeps the full height | a third column: input, result, second result |
+  | Comparison | under the board | not offered; built as `BELOW` | not offered; built as `BELOW` |
+
+  `WindowLayout.effectiveSecondResult(effectivePanes)` is what is built and
+  `secondResultAvailability` says which choices are offered, with a `LayoutDisabledReason` when one
+  is not (no second result chosen in Settings, a column of its own outside Side by side, any shared
+  placement under Comparison). The stored value is never rewritten, so a choice comes back when the
+  panes allow it again. A row in `ABOVE_RESULTS` sits above the whole results area: the result and,
+  when they share it, the second result. When the second result is hidden, whichever split holds it
+  collapses with no gap and no divider, and the three columns share the width in halves again.
+  `SecondResultMenu` (`ui-swing/main/menus`) is the one builder of the choice, shown in View >
+  Layout and in a right-click menu on the second result's header, and the Settings Layout page
+  has a row for it; each hands one whole `WindowLayout` to the single write path.
 - The window is arranged from the window itself. `RegionMenu` (`ui-swing/main/menus`) builds the
   menu for one region (where it goes, whether it shares a row, the service selector's widget and
   strip style, density, and Save layout as profile) and hands each choice to its host as one whole
