@@ -1,13 +1,11 @@
 package com.github.ahatem.qtranslate.plugins.libretranslate
 
 import com.github.ahatem.qtranslate.api.language.LanguageCode
-import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getOrThrow
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -27,7 +25,7 @@ class LibreTranslateLifecycleTest {
 
     @Test
     fun `settings changed while disabled are used by the next enable`() = runBlocking {
-        val http = RecordingHttpClient()
+        val http = libreClient()
         val context = FakePluginContext(httpClient = http)
         val plugin = LibreTranslatePlugin()
 
@@ -56,7 +54,7 @@ class LibreTranslateLifecycleTest {
         // The harder half of the same problem. Re-enabling rebuilds the services, which would hide
         // a service that captured its configuration once; changing settings underneath a running
         // service does not, so this is what actually pins the reading down.
-        val http = RecordingHttpClient()
+        val http = libreClient()
         val plugin = LibreTranslatePlugin()
 
         plugin.initialize(FakePluginContext(httpClient = http))
@@ -77,7 +75,7 @@ class LibreTranslateLifecycleTest {
 
     @Test
     fun `a plugin still translates after being disabled and enabled again`() = runBlocking {
-        val http = RecordingHttpClient()
+        val http = libreClient()
         val context = FakePluginContext(httpClient = http)
         val plugin = LibreTranslatePlugin()
 
@@ -97,7 +95,7 @@ class LibreTranslateLifecycleTest {
 
     @Test
     fun `many disable and enable cycles keep working on one client`() = runBlocking {
-        val http = RecordingHttpClient()
+        val http = libreClient()
         val context = FakePluginContext(httpClient = http)
         val plugin = LibreTranslatePlugin()
 
@@ -117,8 +115,8 @@ class LibreTranslateLifecycleTest {
 
     @Test
     fun `disabling one plugin leaves another translating`() = runBlocking {
-        val firstHttp = RecordingHttpClient()
-        val secondHttp = RecordingHttpClient()
+        val firstHttp = libreClient()
+        val secondHttp = libreClient()
         val first = LibreTranslatePlugin()
         val second = LibreTranslatePlugin()
 
@@ -148,27 +146,8 @@ class LibreTranslateLifecycleTest {
             .translatedText
     }
 
-    private class RecordingHttpClient : TextHttpClient() {
-        val urls = mutableListOf<String>()
-
-        override suspend fun post(
-            url: String,
-            headers: Map<String, String>,
-            body: String?,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            return Ok("""{"translatedText":"bonjour"}""")
-        }
-
-        override suspend fun get(
-            url: String,
-            headers: Map<String, String>,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            return Ok("[]")
-        }
+    private fun libreClient() = ScriptedHttpClient { request ->
+        Ok(if (request.method == "GET") "[]" else """{"translatedText":"bonjour"}""")
     }
 
     private companion object {

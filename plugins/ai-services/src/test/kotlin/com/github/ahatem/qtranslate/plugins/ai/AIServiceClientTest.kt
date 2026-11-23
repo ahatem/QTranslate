@@ -5,7 +5,7 @@ import com.github.ahatem.qtranslate.api.ocr.ImageData
 import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -27,34 +27,6 @@ import kotlin.test.fail
  * a live service.
  */
 class AIServiceClientTest {
-
-    private class ScriptedHttpClient(
-        private val responses: MutableList<Result<String, ServiceError>>
-    ) : TextHttpClient() {
-        val urls = mutableListOf<String>()
-        val headers = mutableListOf<Map<String, String>>()
-        val bodies = mutableListOf<String?>()
-
-        override suspend fun post(
-            url: String,
-            headers: Map<String, String>,
-            body: String?,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            this.headers += headers
-            bodies += body
-            return responses.removeFirstOrNull()
-                ?: error("No scripted response left for POST $url")
-        }
-
-        override suspend fun get(
-            url: String,
-            headers: Map<String, String>,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> =
-            error("The AI client should not issue GETs, but one went to $url")
-    }
 
     /** Profile-based client (the Batch 2 API). */
     private fun client(httpClient: ScriptedHttpClient) =
@@ -88,7 +60,7 @@ class AIServiceClientTest {
 
     @Test
     fun `the connection test sends a real minimal completion, not an empty ping`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).validate(hostedProfile()).fold(
             success = { },
@@ -96,7 +68,7 @@ class AIServiceClientTest {
         )
 
         assertEquals("https://openrouter.ai/api/v1/chat/completions", httpClient.urls.single())
-        val body = httpClient.bodies.single().orEmpty()
+        val body = httpClient.bodies.single()
         assertTrue(body.contains("\"model\":\"openrouter/free\""), "body was: $body")
         assertTrue(body.contains("\"role\":\"system\""), "body was: $body")
         assertTrue(body.contains("\"role\":\"user\""), "body was: $body")
@@ -105,7 +77,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a trailing slash on the base URL does not split the endpoint`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).validate(hostedProfile(baseUrl = "https://openrouter.ai/api/v1/"))
 
@@ -114,7 +86,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a base URL already ending in chat completions is not appended twice`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).validate(hostedProfile(baseUrl = "https://openrouter.ai/api/v1/chat/completions"))
 
@@ -123,7 +95,7 @@ class AIServiceClientTest {
 
     @Test
     fun `whitespace around the base URL is trimmed before resolving the endpoint`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).validate(hostedProfile(baseUrl = "  https://openrouter.ai/api/v1/  "))
 
@@ -132,7 +104,7 @@ class AIServiceClientTest {
 
     @Test
     fun `requests carry the key as a bearer token and JSON content type`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).validate(hostedProfile())
 
@@ -143,7 +115,7 @@ class AIServiceClientTest {
 
     @Test
     fun `complete sends the given profile's model, temperature and max tokens`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION_WITH_TEXT)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION_WITH_TEXT)))
 
         val result = client(httpClient).complete(
             system = "s",
@@ -155,7 +127,7 @@ class AIServiceClientTest {
             success = { assertEquals("Bonjour", it) },
             failure = { fail("complete should pass: ${it.message}") }
         )
-        val body = httpClient.bodies.single().orEmpty()
+        val body = httpClient.bodies.single()
         assertTrue(body.contains("\"model\":\"per-profile-model\""), "body was: $body")
         assertTrue(body.contains("\"temperature\":0.7"), "body was: $body")
         assertTrue(body.contains("\"max_completion_tokens\":128"), "body was: $body")
@@ -163,7 +135,7 @@ class AIServiceClientTest {
 
     @Test
     fun `complete sends the given profile's key as bearer token`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         client(httpClient).complete("s", "u", hostedProfile(apiKey = "profile-specific-key"))
 
@@ -172,7 +144,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a blank key omits the Authorization header entirely`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
         val local = hostedProfile(baseUrl = "http://localhost:11434/v1", apiKey = "")
 
         client(httpClient).complete("s", "u", local)
@@ -185,7 +157,7 @@ class AIServiceClientTest {
 
     @Test
     fun `custom headers are merged but cannot override Authorization or Content-Type`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
         val profile = hostedProfile(
             customHeaders = """{"X-Custom":"yes","Authorization":"Bearer evil-override","Content-Type":"text/plain"}"""
         )
@@ -200,7 +172,7 @@ class AIServiceClientTest {
 
     @Test
     fun `malformed custom headers are skipped without breaking the request`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
 
         val result = client(httpClient).complete("s", "u", hostedProfile(customHeaders = "{not-json"))
 
@@ -213,7 +185,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a hosted endpoint without a key fails before any request is made`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf())
+        val httpClient = ScriptedHttpClient(listOf())
 
         val result = client(httpClient).validate(hostedProfile(apiKey = ""))
 
@@ -226,7 +198,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a local endpoint without a key proceeds to request`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION)))
         val local = hostedProfile(baseUrl = "http://localhost:11434/v1", apiKey = "")
 
         client(httpClient).validate(local).fold(
@@ -238,7 +210,7 @@ class AIServiceClientTest {
 
     @Test
     fun `translation sends the configured model and returns the translated text`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(COMPLETION_WITH_TEXT)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(COMPLETION_WITH_TEXT)))
         val service = AITranslatorService(
             client = client(httpClient),
             profileProvider = { hostedProfile(model = "google/gemini-2.5-flash") }
@@ -256,14 +228,14 @@ class AIServiceClientTest {
             success = { assertEquals("Bonjour", it.translatedText) },
             failure = { fail("translation against a scripted success should pass: ${it.message}") }
         )
-        val body = httpClient.bodies.single().orEmpty()
+        val body = httpClient.bodies.single()
         assertTrue(body.contains("\"model\":\"google/gemini-2.5-flash\""), "body was: $body")
     }
 
     @Test
     fun `an in-band rate limit error maps to a rate limit failure`() = runBlocking {
         val body = """{"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}"""
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(body)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
 
         val result = client(httpClient).complete(system = "s", userContent = "u", profile = hostedProfile())
 
@@ -277,7 +249,7 @@ class AIServiceClientTest {
     @Test
     fun `a finish reason of length is a truncation error`() = runBlocking {
         val body = """{"choices":[{"message":{"role":"assistant","content":"partial"},"finish_reason":"length"}]}"""
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(body)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -288,7 +260,7 @@ class AIServiceClientTest {
     @Test
     fun `a vision finish reason of length is a truncation error`() = runBlocking {
         val body = """{"choices":[{"message":{"role":"assistant","content":"partial"},"finish_reason":"length"}]}"""
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(body)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
 
         val failure = failureOf(
             client(httpClient).completeWithImage(
@@ -306,7 +278,7 @@ class AIServiceClientTest {
     @Test
     fun `a null finish reason passes through as a normal completion`() = runBlocking {
         val body = """{"choices":[{"message":{"role":"assistant","content":"done"},"finish_reason":null}]}"""
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok(body)))
+        val httpClient = ScriptedHttpClient(listOf(Ok(body)))
 
         val result = client(httpClient).complete("s", "u", hostedProfile())
 
@@ -318,7 +290,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a malformed non-JSON body is an invalid response error, not an exception`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok("not json")))
+        val httpClient = ScriptedHttpClient(listOf(Ok("not json")))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -327,7 +299,7 @@ class AIServiceClientTest {
 
     @Test
     fun `an empty choices list is an invalid response error`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Ok("""{"choices":[]}""")))
+        val httpClient = ScriptedHttpClient(listOf(Ok("""{"choices":[]}""")))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -336,7 +308,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a transport ServiceUnavailable error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Err(ServiceError.ServiceUnavailableError("transport says down"))))
+        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.ServiceUnavailableError("transport says down"))))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -346,7 +318,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a transport RateLimit error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Err(ServiceError.RateLimitError("slow down"))))
+        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.RateLimitError("slow down"))))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -356,7 +328,7 @@ class AIServiceClientTest {
 
     @Test
     fun `a transport Authentication error passes through untouched`() = runBlocking {
-        val httpClient = ScriptedHttpClient(mutableListOf(Err(ServiceError.AuthenticationError("HTTP 401"))))
+        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.AuthenticationError("HTTP 401"))))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 
@@ -370,7 +342,7 @@ class AIServiceClientTest {
         // client must not re-map it to ServiceUnavailable or add a synthetic
         // body. Script what the transport would produce for a 404 and pin
         // that it arrives verbatim.
-        val httpClient = ScriptedHttpClient(mutableListOf(Err(ServiceError.UnknownError("HTTP 404 Not Found"))))
+        val httpClient = ScriptedHttpClient(listOf(Err(ServiceError.UnknownError("HTTP 404 Not Found"))))
 
         val failure = failureOf(client(httpClient).complete("s", "u", hostedProfile()))
 

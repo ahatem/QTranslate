@@ -9,7 +9,7 @@ import com.github.ahatem.qtranslate.api.translator.Translator
 import com.github.ahatem.qtranslate.api.ocr.OCR
 import com.github.ahatem.qtranslate.plugins.common.CapturingLogger
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
@@ -30,34 +30,6 @@ import kotlin.test.fail
  * state or leak keys. All HTTP is scripted; all keys are synthetic.
  */
 class AIPluginTest {
-
-    private class ScriptedHttpClient(
-        private val responses: MutableList<Result<String, ServiceError>>
-    ) : TextHttpClient() {
-        val urls = mutableListOf<String>()
-        val headers = mutableListOf<Map<String, String>>()
-        val bodies = mutableListOf<String?>()
-
-        override suspend fun post(
-            url: String,
-            headers: Map<String, String>,
-            body: String?,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            this.headers += headers
-            bodies += body
-            return responses.removeFirstOrNull()
-                ?: error("No scripted response left for POST $url")
-        }
-
-        override suspend fun get(
-            url: String,
-            headers: Map<String, String>,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> =
-            error("The AI client should not issue GETs, but one went to $url")
-    }
 
     private companion object {
         const val COMPLETION = """{"choices":[{"message":{"role":"assistant","content":"1"}}]}"""
@@ -93,7 +65,7 @@ class AIPluginTest {
 
     @Test
     fun `default fields round-trip through settings and survive reinitialize`() = runBlocking {
-        val http = ScriptedHttpClient(mutableListOf())
+        val http = ScriptedHttpClient(listOf())
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
 
@@ -136,7 +108,7 @@ class AIPluginTest {
 
     @Test
     fun `override apiKeys land in secrets and never in settings`() = runBlocking {
-        val http = ScriptedHttpClient(mutableListOf())
+        val http = ScriptedHttpClient(listOf())
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
 
@@ -191,7 +163,7 @@ class AIPluginTest {
     @Test
     fun `inherited translator follows default while vision override is independent`() = runBlocking {
         val http = ScriptedHttpClient(
-            mutableListOf(
+            listOf(
                 Ok(completionWith("Bonjour")),
                 Ok(OCR_COMPLETION)
             )
@@ -232,12 +204,12 @@ class AIPluginTest {
 
         // Translator: Default endpoint + Default model + Default key.
         assertEquals("https://openrouter.ai/api/v1/chat/completions", http.urls[0])
-        assertTrue(http.bodies[0].orEmpty().contains("\"model\":\"default-model\""), "body was: ${http.bodies[0]}")
+        assertTrue(http.bodies[0].contains("\"model\":\"default-model\""), "body was: ${http.bodies[0]}")
         assertEquals("Bearer synthetic-default-key-003", http.headers[0]["Authorization"])
 
         // Vision: its own endpoint + model + key.
         assertEquals("https://vision.example.invalid/v1/chat/completions", http.urls[1])
-        assertTrue(http.bodies[1].orEmpty().contains("\"model\":\"vision-model\""), "body was: ${http.bodies[1]}")
+        assertTrue(http.bodies[1].contains("\"model\":\"vision-model\""), "body was: ${http.bodies[1]}")
         assertEquals("Bearer synthetic-vision-key-003", http.headers[1]["Authorization"])
     }
 
@@ -245,7 +217,7 @@ class AIPluginTest {
 
     @Test
     fun `all-inherit validateAllDistinctProfiles makes one POST`() = runBlocking {
-        val http = ScriptedHttpClient(mutableListOf(Ok(COMPLETION), Ok(COMPLETION)))
+        val http = ScriptedHttpClient(listOf(Ok(COMPLETION), Ok(COMPLETION)))
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
         plugin.onSettingsChanged(
@@ -265,7 +237,7 @@ class AIPluginTest {
 
     @Test
     fun `vision-different validateAllDistinctProfiles makes two POSTs`() = runBlocking {
-        val http = ScriptedHttpClient(mutableListOf(Ok(COMPLETION), Ok(COMPLETION), Ok(COMPLETION)))
+        val http = ScriptedHttpClient(listOf(Ok(COMPLETION), Ok(COMPLETION), Ok(COMPLETION)))
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
         plugin.onSettingsChanged(
@@ -287,7 +259,7 @@ class AIPluginTest {
             failure = { fail("validateAllDistinctProfiles should pass: ${it.message}") }
         )
         assertEquals(2, http.urls.size)
-        assertTrue(http.bodies.any { it.orEmpty().contains("\"model\":\"vision-model\"") }, "bodies were: ${http.bodies}")
+        assertTrue(http.bodies.any { it.contains("\"model\":\"vision-model\"") }, "bodies were: ${http.bodies}")
         assertTrue(http.urls.any { it.contains("vision.example.invalid") }, "urls were: ${http.urls}")
     }
 
@@ -295,7 +267,7 @@ class AIPluginTest {
 
     @Test
     fun `failed onSettingsChanged does not mutate previous stored settings`() = runBlocking {
-        val http = ScriptedHttpClient(mutableListOf())
+        val http = ScriptedHttpClient(listOf())
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
 
@@ -326,7 +298,7 @@ class AIPluginTest {
     @Test
     fun `failed connection test leaves secrets intact`() = runBlocking {
         val http = ScriptedHttpClient(
-            mutableListOf(Err(ServiceError.UnknownError("boom")))
+            listOf(Err(ServiceError.UnknownError("boom")))
         )
         val context = FakePluginContext(httpClient = http)
         val plugin = initializedPlugin(context)
@@ -359,7 +331,7 @@ class AIPluginTest {
         val logger = CapturingLogger()
         val syntheticKey = "SYNTHETIC-KEY-008-leak-check"
         val http = ScriptedHttpClient(
-            mutableListOf(Err(ServiceError.UnknownError("connection refused")))
+            listOf(Err(ServiceError.UnknownError("connection refused")))
         )
         val context = FakePluginContext(logger = logger, httpClient = http)
         val plugin = initializedPlugin(context)

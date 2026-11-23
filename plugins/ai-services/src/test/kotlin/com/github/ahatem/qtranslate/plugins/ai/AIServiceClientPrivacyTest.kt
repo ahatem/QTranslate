@@ -8,10 +8,9 @@ import com.github.ahatem.qtranslate.api.plugin.ServiceError
 import com.github.ahatem.qtranslate.api.translator.TranslationRequest
 import com.github.ahatem.qtranslate.plugins.common.CapturingLogger
 import com.github.ahatem.qtranslate.plugins.common.FakePluginContext
-import com.github.ahatem.qtranslate.plugins.common.TextHttpClient
+import com.github.ahatem.qtranslate.plugins.common.ScriptedHttpClient
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.fold
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -45,29 +44,6 @@ class AIServiceClientPrivacyTest {
     /** A truncated completion whose content is the sentinel. */
     private val truncatedRawCompletion =
         """{"choices":[{"message":{"role":"assistant","content":"$sentinelRaw"},"finish_reason":"length"}]}"""
-
-    private class ScriptedHttpClient(
-        private val response: Result<String, ServiceError>
-    ) : TextHttpClient() {
-        val urls = mutableListOf<String>()
-
-        override suspend fun post(
-            url: String,
-            headers: Map<String, String>,
-            body: String?,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> {
-            urls += url
-            return response
-        }
-
-        override suspend fun get(
-            url: String,
-            headers: Map<String, String>,
-            queryParams: Map<String, Any?>
-        ): Result<String, ServiceError> =
-            error("The AI client should not issue GETs, but one went to $url")
-    }
 
     private fun profile(
         baseUrl: String = "https://api.example.invalid/v1",
