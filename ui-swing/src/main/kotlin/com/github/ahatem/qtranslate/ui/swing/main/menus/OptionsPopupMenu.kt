@@ -93,7 +93,7 @@ data class MenuActions(
     val onManageLayouts: () -> Unit = {},
 )
 
-class LayoutPresetsMenu(
+internal class LayoutPresetsMenu(
     title: String,
     private val availableLayouts: List<LayoutPresetInfo>,
     private val activeLayoutId: String,
@@ -128,7 +128,7 @@ class LayoutPresetsMenu(
     }
 }
 
-class ExtraOutputMenu(
+internal class ExtraOutputMenu(
     title: String,
     private val activeType: ExtraOutputType,
     private val strings: MenuStrings,
@@ -151,7 +151,7 @@ class ExtraOutputMenu(
     }
 }
 
-class ViewOptionsMenu(
+internal class ViewOptionsMenu(
     private val config: Configuration,
     private val actions: MenuActions,
     private val strings: MenuStrings,
