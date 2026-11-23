@@ -35,44 +35,26 @@ class CaptureShortcutsTest {
     }
 
     @Test
-    fun `enter and escape stay reserved for the primary and cancel actions`() {
-        val bindings = listOf(
-            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER, modifiers = 0),
-            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, modifiers = 0),
-            binding(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_C),
+    fun `bare enter and escape are reserved, modified ones are not`() {
+        class Case(val label: String, val action: HotkeyAction, val key: Int, val modifiers: Int, val reserved: Boolean)
+
+        val ctrl = InputEvent.CTRL_DOWN_MASK
+        val cases = listOf(
+            Case("bare enter", HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER, 0, reserved = true),
+            Case("bare escape", HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, 0, reserved = true),
+            Case("bare enter on another capture action", HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, 0, reserved = true),
+            Case("ctrl enter", HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER, ctrl, reserved = false),
+            Case("ctrl escape", HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, ctrl, reserved = false),
+            Case("non-capture action keeps bare enter", HotkeyAction.TRANSLATE, KeyEvent.VK_ENTER, 0, reserved = false),
+            Case("non-capture action keeps bare escape", HotkeyAction.OPEN_OCR, KeyEvent.VK_ESCAPE, 0, reserved = false),
         )
-
-        val installed = installableCaptureShortcuts(bindings)
-
-        assertEquals(listOf(HotkeyAction.OCR_ACTION_COPY_IMAGE), installed.map { it.first.action })
-        assertEquals(CaptureToolbarAction.COPY_IMAGE, installed.single().second)
-    }
-
-    @Test
-    fun `a modified enter or escape remains available as a capture shortcut`() {
-        val bindings = listOf(
-            binding(HotkeyAction.OCR_ACTION_TRANSLATE, KeyEvent.VK_ENTER),
-            binding(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE),
-        )
-
-        assertEquals(
-            listOf(HotkeyAction.OCR_ACTION_TRANSLATE, HotkeyAction.OCR_ACTION_CANCEL),
-            installableCaptureShortcuts(bindings).map { it.first.action },
-        )
-    }
-
-    @Test
-    fun `bare enter and escape are reserved for capture actions only`() {
-        // Settings must reject these at recording time; the runtime filter stays
-        // as the last resort for already-saved configs.
-        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, 0))
-        assertTrue(isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, 0))
-        // Modified Enter/Escape are intentionally supported.
-        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_COPY_IMAGE, KeyEvent.VK_ENTER, InputEvent.CTRL_DOWN_MASK))
-        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OCR_ACTION_CANCEL, KeyEvent.VK_ESCAPE, InputEvent.CTRL_DOWN_MASK))
-        // Non-capture actions keep bare Enter/Escape available.
-        assertTrue(!isReservedBareCaptureKey(HotkeyAction.TRANSLATE, KeyEvent.VK_ENTER, 0))
-        assertTrue(!isReservedBareCaptureKey(HotkeyAction.OPEN_OCR, KeyEvent.VK_ESCAPE, 0))
+        for (case in cases) {
+            assertEquals(case.reserved, isReservedBareCaptureKey(case.action, case.key, case.modifiers), case.label)
+            if (case.action.name.startsWith("OCR_ACTION_")) {
+                val installed = installableCaptureShortcuts(listOf(binding(case.action, case.key, modifiers = case.modifiers)))
+                assertEquals(!case.reserved, installed.isNotEmpty(), "${case.label}: installed")
+            }
+        }
     }
 
     @Test
